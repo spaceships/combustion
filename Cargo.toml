@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["Brent Carmer <bcarmer@gmail.com>"]
 
 [dependencies]
+rand = "^0"
 log = "^0"
 env_logger = "^0"
