@@ -1,0 +1,5 @@
+#!/bin/bash
+
+export RUST_LOG=combustion=debug 
+echo >> log.txt
+exec cargo run 2>>log.txt
