@@ -40,6 +40,7 @@ struct Move {
     takes: bool,
     en_passant: bool,
     kind: PieceType,
+    promotion: Option<PieceType>,
 }
 
 impl Move {
@@ -61,9 +62,18 @@ impl Move {
         let from: String = cs[0..2].iter().cloned().collect();
         let to:   String = cs[3..5].iter().cloned().collect();
         let mut ep = false;
-        if s.len() >= 8 {
-            let ep_string: String = cs[5..9].iter().cloned().collect();
-            ep = ep_string == "e.p.";
+        let mut promotion = None;
+        if s.len() > 5 {
+            let extras: String = cs[5..].iter().cloned().collect();
+            if extras == "e.p." {
+                ep = true;
+            } else if extras == "Q" {
+                promotion = Some(PieceType::Queen);
+            } else if extras == "N" {
+                promotion = Some(PieceType::Knight);
+            } else {
+                panic!("[Move::from_algebra] unkonwn suffix: \"{}\"", extras);
+            }
         }
         Move {
             from: Pos(from_algebra(&from)),
@@ -71,6 +81,7 @@ impl Move {
             takes: cs[2] == 'x',
             en_passant: ep,
             kind: kind,
+            promotion: promotion,
         }
     }
 }
@@ -149,32 +160,54 @@ impl Board {
                 takes: false,
                 en_passant: false,
                 kind: PieceType::Pawn,
+                promotion: None,
             };
 
             // noncapturing pawn move
-            if !self.occupied(new) &&
-                (new.is_north_by(old, 1) || (old.rank() == 6 && new.is_north_by(old, 2)))
+            if !self.occupied(new) && !new.rank_is('8') &&
+                (new.is_north_of_by(old, 1) || (old.rank_is('2') && new.is_north_of_by(old, 2)))
             {
                 moves.push(m);
             }
 
             // capturing pawn move
-            else if self.occupied(new) &&
-                (new.is_northeast_by(old, 1) || new.is_northwest_by(old, 1))
+            else if self.occupied(new) && !new.rank_is('8') &&
+                (new.is_northeast_of_by(old, 1) || new.is_northwest_of_by(old, 1))
             {
                 m.takes = true;
                 moves.push(m);
             }
 
             // en passant
-            else if self.is_en_passant_target(new) &&
-                (new.is_northeast_by(old, 1) || new.is_northwest_by(old, 1))
+            else if self.is_en_passant_target(new) && !old.rank_is('7') &&
+                (new.is_northeast_of_by(old, 1) || new.is_northwest_of_by(old, 1))
             {
                 m.takes = true;
                 m.en_passant = true;
                 moves.push(m);
             }
-            // TODO promotion
+
+
+            else if !self.occupied(new) &&
+                old.rank_is('7') && new.rank_is('8') &&
+                old.file() == new.file()
+            {
+                m.promotion = Some(PieceType::Queen);
+                moves.push(m);
+                m.promotion = Some(PieceType::Knight);
+                moves.push(m);
+            }
+
+            else if self.occupied(new) &&
+                old.rank_is('7') && new.rank_is('8') &&
+                (new.is_northeast_of_by(old, 1) || new.is_northwest_of_by(old, 1))
+            {
+                m.takes = true;
+                m.promotion = Some(PieceType::Queen);
+                moves.push(m);
+                m.promotion = Some(PieceType::Knight);
+                moves.push(m);
+            }
         }
         moves
     }
@@ -191,26 +224,48 @@ impl Board {
                 takes: false,
                 en_passant: false,
                 kind: PieceType::Pawn,
+                promotion: None,
             };
 
-            if !self.occupied(new) &&
-                (new.is_south_by(old, 1) || (old.rank() == 1 && new.is_south_by(old, 2)))
+            if !old.rank_is('2') && !self.occupied(new) &&
+                (new.is_south_of_by(old, 1) || (old.rank_is('7') && new.is_south_of_by(old, 2)))
             {
+                moves.push(m);
+            }
+
+            else if !old.rank_is('2') && self.occupied(new) &&
+                (new.is_southeast_of_by(old, 1) || new.is_southwest_of_by(old, 1))
+            {
+                m.takes = true;
+                moves.push(m);
+            }
+
+            else if !old.rank_is('2') && self.is_en_passant_target(new) &&
+                (new.is_southeast_of_by(old, 1) || new.is_southwest_of_by(old, 1))
+            {
+                m.takes = true;
+                m.en_passant = true;
+                moves.push(m);
+            }
+
+            else if !self.occupied(new) &&
+                old.rank_is('2') && new.rank_is('1') &&
+                old.file() == new.file()
+            {
+                m.promotion = Some(PieceType::Queen);
+                moves.push(m);
+                m.promotion = Some(PieceType::Knight);
                 moves.push(m);
             }
 
             else if self.occupied(new) &&
-                (new.is_southeast_by(old, 1) || new.is_southwest_by(old, 1))
+                old.rank_is('2') && new.rank_is('1') &&
+                (new.is_southeast_of_by(old, 1) || new.is_southwest_of_by(old, 1))
             {
                 m.takes = true;
+                m.promotion = Some(PieceType::Queen);
                 moves.push(m);
-            }
-
-            else if self.is_en_passant_target(new) &&
-                (new.is_southeast_by(old, 1) || new.is_southwest_by(old, 1))
-            {
-                m.takes = true;
-                m.en_passant = true;
+                m.promotion = Some(PieceType::Knight);
                 moves.push(m);
             }
         }
@@ -300,34 +355,44 @@ impl Pos {
         (self.0 - self.file()) / 8
     }
 
-    fn is_north_by(&self, other: Pos, dist: usize) -> bool {
+    fn file_is(&self, c: char) -> bool {
+        let file = c as usize - 'a' as usize;
+        self.file() == file
+    }
+
+    fn rank_is(&self, c: char) -> bool {
+        let rank = 7 - (c as usize - '1' as usize);
+        self.rank() == rank
+    }
+
+    fn is_north_of_by(&self, other: Pos, dist: usize) -> bool {
         other.rank() >= dist
             && self.file() == other.file()
             && self.rank() == other.rank() - dist
     }
 
-    fn is_northeast_by(&self, other: Pos, dist: usize) -> bool {
+    fn is_northeast_of_by(&self, other: Pos, dist: usize) -> bool {
         other.rank() >= dist
             && self.file() == other.file() + dist
             && self.rank() == other.rank() - dist
     }
 
-    fn is_northwest_by(&self, other: Pos, dist: usize) -> bool {
+    fn is_northwest_of_by(&self, other: Pos, dist: usize) -> bool {
         return self.file() + dist == other.file()
             && self.rank() + dist == other.rank()
     }
 
-    fn is_south_by(&self, other: Pos, dist: usize) -> bool {
+    fn is_south_of_by(&self, other: Pos, dist: usize) -> bool {
         return self.file() == other.file()
             && self.rank() == other.rank() + dist
     }
 
-    fn is_southeast_by(&self, other: Pos, dist: usize) -> bool {
+    fn is_southeast_of_by(&self, other: Pos, dist: usize) -> bool {
         return self.file()  + dist == other.file()
             && other.rank() + dist == self.rank()
     }
 
-    fn is_southwest_by(&self, other: Pos, dist: usize) -> bool {
+    fn is_southwest_of_by(&self, other: Pos, dist: usize) -> bool {
         return other.file() + dist == self.file()
             && other.rank() + dist == self.rank()
     }
@@ -412,7 +477,16 @@ impl fmt::Display for Move {//{{{
             if self.takes { "x" } else { "-" },
             self.to,
             if self.en_passant { "e.p." } else { "" },
-        )
+        )?;
+        match self.promotion {
+            Some(PieceType::Bishop) => write!(f, "B")?,
+            Some(PieceType::Knight) => write!(f, "N")?,
+            Some(PieceType::Rook)   => write!(f, "R")?,
+            Some(PieceType::Queen)  => write!(f, "Q")?,
+            Some(PieceType::King)   => write!(f, "K")?,
+            _ => {}
+        }
+        write!(f, "")
     }
 }
 
@@ -424,7 +498,7 @@ mod tests {
     use std::collections::HashSet;
 
     #[test]
-    fn moves() {
+    fn initial_moves() {
         let b = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
         println!("\n{}", b);
         assert_eq!(b.legal_moves().len(), 10);
@@ -478,5 +552,29 @@ mod tests {
         assert_eq!(res, should_be);
     }
 
-    // TODO: promotion
+    #[test]
+    fn white_promotion() {
+        let b = Board::from_fen("3n4/4P3/8/8/8/8/8/8 w - - 0 1");
+        println!("\n{}", b);
+        let mut should_be = HashSet::new();
+        should_be.insert(Move::from_algebra("e7-e8Q"));
+        should_be.insert(Move::from_algebra("e7-e8N"));
+        should_be.insert(Move::from_algebra("e7xd8Q"));
+        should_be.insert(Move::from_algebra("e7xd8N"));
+        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        assert_eq!(res, should_be);
+    }
+
+    #[test]
+    fn black_promotion() {
+        let b = Board::from_fen("8/8/8/8/8/8/3p4/4N3/ b - - 0 1");
+        println!("\n{}", b);
+        let mut should_be = HashSet::new();
+        should_be.insert(Move::from_algebra("d2-d1Q"));
+        should_be.insert(Move::from_algebra("d2-d1N"));
+        should_be.insert(Move::from_algebra("d2xe1Q"));
+        should_be.insert(Move::from_algebra("d2xe1N"));
+        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        assert_eq!(res, should_be);
+    }
 }
