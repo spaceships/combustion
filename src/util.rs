@@ -27,7 +27,6 @@ macro_rules! send(
 pub fn to_algebra(coord: usize) -> String {
     let x = coord as u8 % 8;
     let y = (coord as u8 - x) / 8;
-    println!("({},{})", x, y);
     let rank = ('1' as u8 + (7 - y)) as char;
     let file = ('a' as u8 + x) as char;
     let mut s = String::with_capacity(2);
@@ -37,7 +36,6 @@ pub fn to_algebra(coord: usize) -> String {
 }
 
 pub fn from_algebra(s: &str) -> usize {
-    println!("{}", s);
     let cs: Vec<char> = s.chars().collect();
     let row = 7 - (cs[1] as usize - '1' as usize);
     let col = cs[0] as usize - 'a' as usize;
