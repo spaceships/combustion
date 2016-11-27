@@ -2,7 +2,7 @@ use std::fmt;
 
 use util::{from_algebra, to_algebra};
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 enum Color {
     White,
     Black,
@@ -18,24 +18,20 @@ enum PieceType {
     King,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct Piece {
     kind: PieceType,
     color: Color,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+enum Castle {
+    Kingside,
+    Queenside,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 struct Pos(usize);
-
-#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
-struct Move {
-    from: Pos,
-    to: Pos,
-    takes: bool,
-    en_passant: bool,
-    kind: PieceType,
-    promotion: Option<PieceType>,
-}
 
 pub struct Board {
     board: [Option<Piece>; 64],
@@ -46,45 +42,82 @@ pub struct Board {
     move_number: usize,
 }
 
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
+struct Move {
+    kind: PieceType,
+    from: Pos,
+    to: Pos,
+    takes: bool,
+    en_passant: bool,
+    promotion: Option<PieceType>,
+    castle: Option<Castle>,
+}
+
+impl Color {
+    fn other(&self) -> Color {
+        match *self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
+}
+
 impl Move {
     fn from_algebra(s: &str) -> Self {
-        let mut cs: Vec<char> = s.chars().collect();
-        let kind = match cs[0] {
-            'B'|'N'|'R'|'Q'|'K' => {
-                match cs.remove(0) {
-                    'B' => PieceType::Bishop,
-                    'N' => PieceType::Knight,
-                    'R' => PieceType::Rook,
-                    'Q' => PieceType::Queen,
-                    'K' => PieceType::King,
-                    _ => panic!("shouldn't be getting here ever..."),
+        if s == "0-0" {
+            Move {
+                kind: PieceType::King,
+                from: Pos(0), to: Pos(0), takes: false,
+                en_passant: false, promotion: None,
+                castle: Some(Castle::Kingside),
+            }
+        } else if s == "0-0-0" {
+            Move {
+                kind: PieceType::King,
+                from: Pos(0), to: Pos(0), takes: false,
+                en_passant: false, promotion: None,
+                castle: Some(Castle::Queenside)
+            }
+        } else {
+            let mut cs: Vec<char> = s.chars().collect();
+            let kind = match cs[0] {
+                'B'|'N'|'R'|'Q'|'K' => {
+                    match cs.remove(0) {
+                        'B' => PieceType::Bishop,
+                        'N' => PieceType::Knight,
+                        'R' => PieceType::Rook,
+                        'Q' => PieceType::Queen,
+                        'K' => PieceType::King,
+                        _ => panic!("shouldn't be getting here ever..."),
+                    }
+                }
+                _ => PieceType::Pawn,
+            };
+            let from: String = cs[0..2].iter().cloned().collect();
+            let to:   String = cs[3..5].iter().cloned().collect();
+            let mut ep = false;
+            let mut promotion = None;
+            if cs.len() > 5 {
+                let extras: String = cs[5..].iter().cloned().collect();
+                if extras == "e.p." {
+                    ep = true;
+                } else if extras == "Q" {
+                    promotion = Some(PieceType::Queen);
+                } else if extras == "N" {
+                    promotion = Some(PieceType::Knight);
+                } else {
+                    panic!("[Move::from_algebra] unkonwn suffix: \"{}\"", extras);
                 }
             }
-            _ => PieceType::Pawn,
-        };
-        let from: String = cs[0..2].iter().cloned().collect();
-        let to:   String = cs[3..5].iter().cloned().collect();
-        let mut ep = false;
-        let mut promotion = None;
-        if cs.len() > 5 {
-            let extras: String = cs[5..].iter().cloned().collect();
-            if extras == "e.p." {
-                ep = true;
-            } else if extras == "Q" {
-                promotion = Some(PieceType::Queen);
-            } else if extras == "N" {
-                promotion = Some(PieceType::Knight);
-            } else {
-                panic!("[Move::from_algebra] unkonwn suffix: \"{}\"", extras);
+            Move {
+                kind: kind,
+                from: Pos(from_algebra(&from)),
+                to: Pos(from_algebra(&to)),
+                takes: cs[2] == 'x',
+                en_passant: ep,
+                promotion: promotion,
+                castle: None,
             }
-        }
-        Move {
-            from: Pos(from_algebra(&from)),
-            to: Pos(from_algebra(&to)),
-            takes: cs[2] == 'x',
-            en_passant: ep,
-            kind: kind,
-            promotion: promotion,
         }
     }
 }
@@ -131,6 +164,28 @@ impl Board {
         }
     }
 
+    fn castle_kingside_rights(&self, c: Color) -> bool {
+        match c {
+            Color::White => self.castle_rights[0],
+            Color::Black => self.castle_rights[2],
+        }
+    }
+
+    fn castle_queenside_rights(&self, c: Color) -> bool {
+        match c {
+            Color::White => self.castle_rights[1],
+            Color::Black => self.castle_rights[3],
+        }
+    }
+
+    fn make_move(&self, mv: &Move) -> Board {
+        let from_piece = self.piece(mv.from)
+            .expect(&format!("[Board::make_move] no piece at {}!", mv.from));
+        assert_eq!(from_piece.color, self.to_move);
+        let mut b = Board { to_move: self.to_move.other(), .. *self };
+        unimplemented!()
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // moves generation
 
@@ -166,12 +221,12 @@ impl Board {
         for ix in 0 .. 64 {
             let new = Pos(ix);
             m = Move {
-                from: old,
-                to: new,
+                kind: PieceType::Pawn,
+                from: old, to: new,
                 takes: false,
                 en_passant: false,
-                kind: PieceType::Pawn,
                 promotion: None,
+                castle: None,
             };
 
             // noncapturing pawn move
@@ -229,12 +284,12 @@ impl Board {
         for ix in 0 .. 64 {
             let new = Pos(ix);
             m = Move {
-                from: old,
-                to: new,
+                kind: PieceType::Pawn,
+                from: old, to: new,
                 takes: false,
                 en_passant: false,
-                kind: PieceType::Pawn,
                 promotion: None,
+                castle: None,
             };
 
             if !old.rank_is('2') && !self.occupied(new) &&
@@ -286,12 +341,12 @@ impl Board {
         let mut new = old;
         let mut moves = Vec::new();
         let m = Move {
-            from: old,
-            to: new,
+            kind: PieceType::Queen,
+            from: old, to: new,
             takes: false,
             en_passant: false,
-            kind: PieceType::Queen,
             promotion: None,
+            castle: None,
         };
 
         {
@@ -375,12 +430,13 @@ impl Board {
         let mut new = old;
         let mut moves = Vec::new();
         let m = Move {
+            kind: PieceType::Rook,
             from: old,
             to: new,
             takes: false,
             en_passant: false,
-            kind: PieceType::Rook,
             promotion: None,
+            castle: None,
         };
 
         {
@@ -428,12 +484,13 @@ impl Board {
         let mut new = old;
         let mut moves = Vec::new();
         let m = Move {
+            kind: PieceType::Bishop,
             from: old,
             to: new,
             takes: false,
             en_passant: false,
-            kind: PieceType::Bishop,
             promotion: None,
+            castle: None,
         };
 
         {
@@ -480,12 +537,13 @@ impl Board {
     fn knight_moves(&self, old: Pos, c: Color) -> Vec<Move> {//{{{
         let mut moves = Vec::new();
         let m = Move {
+            kind: PieceType::Knight,
             from: old,
             to: old,
             takes: false,
             en_passant: false,
-            kind: PieceType::Knight,
             promotion: None,
+            castle: None,
         };
         {
             let mut mv = |vert, horiz| {
@@ -512,31 +570,45 @@ impl Board {
     fn king_moves(&self, old: Pos, c: Color) -> Vec<Move> {//{{{
         let mut moves = Vec::new();
         let m = Move {
+            kind: PieceType::King,
             from: old,
             to: old,
             takes: false,
             en_passant: false,
-            kind: PieceType::King,
             promotion: None,
+            castle: None,
         };
+        let king_moves = [(1,0), (1,1), (1,-1), (-1,0), (-1,1), (-1,-1), (0,1), (0,-1)];
+        for &(vert, horiz) in king_moves.iter() {
+            match old.mv(vert,horiz) {
+                None => {}
+                Some(new) => match self.piece(new) {
+                    None => moves.push(Move{to: new, takes: false, .. m}),
+                    Some(p) => if p.color != c { moves.push(Move{to: new, takes: true, .. m}) },
+                },
+            }
+        }
+
+        let castle = Move {
+            kind: PieceType::King,
+            from: Pos(0), to: Pos(0), takes: false,
+            en_passant: false, promotion: None,
+            castle: None,
+        };
+
+        if self.castle_kingside_rights(c) &&
+            !self.occupied(old.east(1).expect("[Board::king_moves] confusing castling rights!")) &&
+            !self.occupied(old.east(2).expect("[Board::king_moves] confusing castling rights!"))
         {
-            let mut mv = |vert, horiz| {
-                match old.mv(vert,horiz) {
-                    None => return,
-                    Some(new) => match self.piece(new) {
-                        None => moves.push(Move{to: new, takes: false, .. m}),
-                        Some(p) => if p.color != c { moves.push(Move{to: new, takes: true, .. m}) },
-                    },
-                }
-            };
-            mv(1,0);
-            mv(1,1);
-            mv(1,-1);
-            mv(-1,0);
-            mv(-1,1);
-            mv(-1,-1);
-            mv(0,1);
-            mv(0,-1);
+            moves.push(Move{castle: Some(Castle::Kingside),..castle});
+        }
+
+        if self.castle_queenside_rights(c) &&
+            !self.occupied(old.west(1).expect("[Board::king_moves] confusing castling rights!")) &&
+            !self.occupied(old.west(2).expect("[Board::king_moves] confusing castling rights!")) &&
+            !self.occupied(old.west(3).expect("[Board::king_moves] confusing castling rights!"))
+        {
+            moves.push(Move{castle: Some(Castle::Queenside),..castle});
         }
         moves
     }
@@ -548,6 +620,13 @@ impl Board {
         let mut j = 0;
         let tokens: Vec<&str> = fen.split(" ").collect();
 
+        let check = |i,j| {
+            if i*8+j >= 64 {
+                let s = format!("[Board::from_fen] index out of bounds i={} j={}!", i, j);
+                panic!(s);
+            }
+        };
+
         // parse board
         for c in tokens[0].chars() {
             match c {
@@ -558,18 +637,18 @@ impl Board {
                     j += n.to_string().parse().expect("couldn't read number!");
                 }
 
-                'P' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
-                'p' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::Black }); j += 1; }
-                'B' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::White }); j += 1; }
-                'b' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::Black }); j += 1; }
-                'N' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::White }); j += 1; }
-                'n' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::Black }); j += 1; }
-                'R' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::White }); j += 1; }
-                'r' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::Black }); j += 1; }
-                'Q' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::White }); j += 1; }
-                'q' => { b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::Black }); j += 1; }
-                'K' => { b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::White }); j += 1; }
-                'k' => { b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::Black }); j += 1; }
+                'P' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
+                'p' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::Black }); j += 1; }
+                'B' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::White }); j += 1; }
+                'b' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::Black }); j += 1; }
+                'N' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::White }); j += 1; }
+                'n' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::Black }); j += 1; }
+                'R' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::White }); j += 1; }
+                'r' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::Black }); j += 1; }
+                'Q' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::White }); j += 1; }
+                'q' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::Black }); j += 1; }
+                'K' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::White }); j += 1; }
+                'k' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::Black }); j += 1; }
 
                 c => panic!("unexpected \"{}\"", c),
             }
@@ -608,6 +687,7 @@ impl Board {
     //}}}
 }
 
+#[allow(dead_code)]
 impl Pos {
     fn new(rank: usize, file: usize) -> Pos {
         Pos(rank * 8 + file)
@@ -755,29 +835,35 @@ impl fmt::Display for Pos {//{{{
 //}}}
 impl fmt::Display for Move {//{{{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.kind {
-            PieceType::Bishop => write!(f, "B")?,
-            PieceType::Knight => write!(f, "N")?,
-            PieceType::Rook   => write!(f, "R")?,
-            PieceType::Queen  => write!(f, "Q")?,
-            PieceType::King   => write!(f, "K")?,
-            _ => {}
+        match self.castle {
+            Some(Castle::Kingside)  => write!(f, "0-0"),
+            Some(Castle::Queenside) => write!(f, "0-0-0"),
+            None => {
+                match self.kind {
+                    PieceType::Bishop => write!(f, "B")?,
+                    PieceType::Knight => write!(f, "N")?,
+                    PieceType::Rook   => write!(f, "R")?,
+                    PieceType::Queen  => write!(f, "Q")?,
+                    PieceType::King   => write!(f, "K")?,
+                    _ => {}
+                }
+                write!(f, "{}{}{}{}",
+                    self.from,
+                    if self.takes { "x" } else { "-" },
+                    self.to,
+                    if self.en_passant { "e.p." } else { "" },
+                )?;
+                match self.promotion {
+                    Some(PieceType::Bishop) => write!(f, "B")?,
+                    Some(PieceType::Knight) => write!(f, "N")?,
+                    Some(PieceType::Rook)   => write!(f, "R")?,
+                    Some(PieceType::Queen)  => write!(f, "Q")?,
+                    Some(PieceType::King)   => write!(f, "K")?,
+                    _ => {}
+                }
+                write!(f, "")
+            }
         }
-        write!(f, "{}{}{}{}",
-            self.from,
-            if self.takes { "x" } else { "-" },
-            self.to,
-            if self.en_passant { "e.p." } else { "" },
-        )?;
-        match self.promotion {
-            Some(PieceType::Bishop) => write!(f, "B")?,
-            Some(PieceType::Knight) => write!(f, "N")?,
-            Some(PieceType::Rook)   => write!(f, "R")?,
-            Some(PieceType::Queen)  => write!(f, "Q")?,
-            Some(PieceType::King)   => write!(f, "K")?,
-            _ => {}
-        }
-        write!(f, "")
     }
 }
 
@@ -821,7 +907,7 @@ mod tests {
         assert_eq!(res, should_be);
     }
 //}}}
-    #[test] white_en_passant//{{{
+    #[test] // white_en_passant//{{{
     fn white_en_passant() {
         let b = Board::from_fen("8/8/8/pP6/8/8/8/8 w - a6 0 1");
         println!("\n{}", b);
@@ -1113,4 +1199,19 @@ mod tests {
         assert_eq!(res, should_be);
     }
     //}}}
+    #[test] // white_castling//{{{
+    fn white_castling() {
+        let b = Board::from_fen("8/8/8/8/8/8/8/R3K2R w KQ - 0 1");
+        println!("\n{}", b);
+        let mut should_be = HashSet::new();
+        should_be.insert(Move::from_algebra("0-0"));
+        should_be.insert(Move::from_algebra("0-0-0"));
+        println!("should_be=");
+        for mov in should_be.iter() {
+            println!("  {}", mov);
+        }
+        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        assert!(should_be.is_subset(&res));
+    }
+//}}}
 }
