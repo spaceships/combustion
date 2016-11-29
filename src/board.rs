@@ -1,6 +1,5 @@
-use std::fmt;
-
 use util::{from_algebra, to_algebra};
+use std::fmt;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum Color {
@@ -737,26 +736,14 @@ impl Pos {
     fn southwest(&self, d: isize) -> Option<Pos> { self.mv(d, -d) }
 }
 
-impl fmt::Display for Piece {//{{{
+// board impls {{{
+impl fmt::Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Piece { kind: PieceType::Pawn,   color: Color::White } => write!(f, "P"),
-            Piece { kind: PieceType::Bishop, color: Color::White } => write!(f, "B"),
-            Piece { kind: PieceType::Knight, color: Color::White } => write!(f, "N"),
-            Piece { kind: PieceType::Rook,   color: Color::White } => write!(f, "R"),
-            Piece { kind: PieceType::Queen,  color: Color::White } => write!(f, "Q"),
-            Piece { kind: PieceType::King,   color: Color::White } => write!(f, "K"),
-            Piece { kind: PieceType::Pawn,   color: Color::Black } => write!(f, "p"),
-            Piece { kind: PieceType::Bishop, color: Color::Black } => write!(f, "b"),
-            Piece { kind: PieceType::Knight, color: Color::Black } => write!(f, "n"),
-            Piece { kind: PieceType::Rook,   color: Color::Black } => write!(f, "r"),
-            Piece { kind: PieceType::Queen,  color: Color::Black } => write!(f, "q"),
-            Piece { kind: PieceType::King,   color: Color::Black } => write!(f, "k"),
-        }
+        write!(f, "{}", self)
     }
 }
-//}}}
-impl fmt::Display for Board {//{{{
+
+impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for i in 0..8 {
             write!(f, "{} [ ", 8-i)?;
@@ -793,6 +780,45 @@ impl fmt::Display for Board {//{{{
         }
 
         write!(f, "\n")
+    }
+}
+
+impl PartialEq for Board {
+    fn eq(&self, other: &Board) -> bool {
+        let mut eq = true;
+        eq &= self.to_move == other.to_move;
+        eq &= self.castle_rights == other.castle_rights;
+        eq &= self.en_passant_target == other.en_passant_target;
+        // // these properties dont affect what the next move could be
+        // eq &&= self.halfmove_clock == other.halfmove_clock;
+        // eq &&= self.move_number == other.move_number;
+        for i in 0..64 {
+            match (self.board[i], other.board[i]) {
+                (Some(p), Some(q)) => eq &= p == q,
+                (None, None)       => {},
+                _                  => return false,
+            }
+        }
+        eq
+    }
+}
+//}}}
+impl fmt::Display for Piece {//{{{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Piece { kind: PieceType::Pawn,   color: Color::White } => write!(f, "P"),
+            Piece { kind: PieceType::Bishop, color: Color::White } => write!(f, "B"),
+            Piece { kind: PieceType::Knight, color: Color::White } => write!(f, "N"),
+            Piece { kind: PieceType::Rook,   color: Color::White } => write!(f, "R"),
+            Piece { kind: PieceType::Queen,  color: Color::White } => write!(f, "Q"),
+            Piece { kind: PieceType::King,   color: Color::White } => write!(f, "K"),
+            Piece { kind: PieceType::Pawn,   color: Color::Black } => write!(f, "p"),
+            Piece { kind: PieceType::Bishop, color: Color::Black } => write!(f, "b"),
+            Piece { kind: PieceType::Knight, color: Color::Black } => write!(f, "n"),
+            Piece { kind: PieceType::Rook,   color: Color::Black } => write!(f, "r"),
+            Piece { kind: PieceType::Queen,  color: Color::Black } => write!(f, "q"),
+            Piece { kind: PieceType::King,   color: Color::Black } => write!(f, "k"),
+        }
     }
 }
 //}}}
@@ -1201,4 +1227,11 @@ mod tests {
         assert!(should_be.is_subset(&res));
     }
 //}}}
+
+    #[test] // make_move
+    fn make_move() {
+        let b = Board::from_fen("r3k2r/8/8/8/8/8/8/8 b kq - 0 1");
+        let should_be = Board::from_fen("r31rk1/8/8/8/8/8/8/8 b - - 0 1");
+        assert_eq!(b.make_move(&Move::from_algebra("0-0")), should_be);
+    }
 }
