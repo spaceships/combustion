@@ -34,7 +34,7 @@ struct Pos(usize);
 
 pub struct Board {
     board: [Option<Piece>; 64],
-    to_move: Color,
+    color_to_move: Color,
     castle_rights: [bool; 4], // [ white K, white Q, black k, black q ]
     en_passant_target: Option<Pos>,
     halfmove_clock: usize,
@@ -125,7 +125,7 @@ impl Board {
     pub fn new() -> Self {
         Board {
             board: [None; 64],
-            to_move: Color::White,
+            color_to_move: Color::White,
             castle_rights: [false, false, false, false],
             en_passant_target: None,
             halfmove_clock: 0,
@@ -139,6 +139,16 @@ impl Board {
 
     fn piece(&self, loc: Pos) -> Option<Piece> {
         self.board[loc.0]
+    }
+
+    fn get_piece_at(&mut self, s: &str) -> Option<Piece> {
+        self.board[Pos::from_algebra(s).0].take()
+    }
+
+    fn put_piece_at(&mut self, p: Option<Piece>, s: &str) {
+        let pos = Pos::from_algebra(s);
+        assert!(self.piece(pos).is_none());
+        self.board[pos.0] = p;
     }
 
     fn pieces(&self, f: &Fn(Piece) -> bool) -> Vec<(Pos, Piece)> {
@@ -176,18 +186,58 @@ impl Board {
     }
 
     fn make_move(&self, mv: &Move) -> Board {
-        let from_piece = self.piece(mv.from)
-            .expect(&format!("[Board::make_move] no piece at {}!", mv.from));
-        assert_eq!(from_piece.color, self.to_move);
-        let mut b = Board { to_move: self.to_move.other(), .. *self };
-        unimplemented!()
+        let col = self.color_to_move;
+        let mut b = Board { color_to_move: col.other(), .. *self };
+        if col == Color::Black {
+            b.move_number += 1;
+        }
+        if let Some(c) = mv.castle {
+            match c {
+                Castle::Kingside => {
+                    assert!(self.castle_kingside_rights(col));
+                    match col {
+                        Color::White => {
+                            let k = b.get_piece_at("e1");
+                            let r = b.get_piece_at("h1");
+                            b.put_piece_at(k, "g1");
+                            b.put_piece_at(r, "f1");
+                            b.castle_rights[0] = false;
+                            b.castle_rights[1] = false;
+                        }
+                        Color::Black => {
+                            let k = b.get_piece_at("e8");
+                            let r = b.get_piece_at("h8");
+                            b.put_piece_at(k, "g8");
+                            b.put_piece_at(r, "f8");
+                            b.castle_rights[2] = false;
+                            b.castle_rights[3] = false;
+                        }
+                    }
+                }
+                Castle::Queenside => {
+                    assert!(self.castle_queenside_rights(col));
+                }
+            }
+        } else if mv.en_passant {
+            unimplemented!();
+        } else if let Some(prom) = mv.promotion {
+            unimplemented!();
+        } else {
+            let p = b.board[mv.from.0].take()
+                .expect(&format!("[make_move] no piece at {}", mv.from));
+            assert_eq!(p.color, col);
+            let q = b.board[mv.to.0].take();
+            assert_eq!(mv.takes, q.is_some());
+            b.board[mv.to.0] = Some(p);
+        }
+        b
     }
 
     ////////////////////////////////////////////////////////////////////////////////
     // moves generation
 
     fn legal_moves(&self) -> Vec<Move> {
-        let c = self.to_move;
+        let c = self.color_to_move;
         let mut moves = Vec::new();
         for (loc, p) in self.pieces(&|p: Piece| p.color == c) {
             match p.kind {
@@ -656,8 +706,8 @@ impl Board {
 
         // parse turn
         match tokens[1] {
-            "w"|"W" => b.to_move = Color::White,
-            "b"|"B" => b.to_move = Color::Black,
+            "w"|"W" => b.color_to_move = Color::White,
+            "b"|"B" => b.color_to_move = Color::Black,
             c => panic!("unexpected \"{}\"", c),
         }
 
@@ -758,7 +808,7 @@ impl fmt::Display for Board {
         write!(f, "    a b c d e f g h\n")?;
         write!(f, "{}.", self.move_number)?;
 
-        match self.to_move {
+        match self.color_to_move {
             Color::White => write!(f, " White to move.")?,
             Color::Black => write!(f, " Black to move.")?,
         }
@@ -786,12 +836,12 @@ impl fmt::Display for Board {
 impl PartialEq for Board {
     fn eq(&self, other: &Board) -> bool {
         let mut eq = true;
-        eq &= self.to_move == other.to_move;
+        eq &= self.color_to_move == other.color_to_move;
         eq &= self.castle_rights == other.castle_rights;
         eq &= self.en_passant_target == other.en_passant_target;
         // // these properties dont affect what the next move could be
-        // eq &&= self.halfmove_clock == other.halfmove_clock;
-        // eq &&= self.move_number == other.move_number;
+        eq &= self.halfmove_clock == other.halfmove_clock;
+        eq &= self.move_number == other.move_number;
         for i in 0..64 {
             match (self.board[i], other.board[i]) {
                 (Some(p), Some(q)) => eq &= p == q,
@@ -1231,7 +1281,7 @@ mod tests {
     #[test] // make_move
     fn make_move() {
         let b = Board::from_fen("r3k2r/8/8/8/8/8/8/8 b kq - 0 1");
-        let should_be = Board::from_fen("r31rk1/8/8/8/8/8/8/8 b - - 0 1");
+        let should_be = Board::from_fen("r31rk1/8/8/8/8/8/8/8 w - - 0 2");
         assert_eq!(b.make_move(&Move::from_algebra("0-0")), should_be);
     }
 }
