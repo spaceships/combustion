@@ -100,10 +100,14 @@ impl Move {
                 let extras: String = cs[5..].iter().cloned().collect();
                 if extras == "e.p." {
                     ep = true;
-                } else if extras == "Q" {
+                } else if extras == "=Q" {
                     promotion = Some(PieceType::Queen);
-                } else if extras == "N" {
+                } else if extras == "=N" {
                     promotion = Some(PieceType::Knight);
+                } else if extras == "=R" {
+                    promotion = Some(PieceType::Rook);
+                } else if extras == "=B" {
+                    promotion = Some(PieceType::Bishop);
                 } else {
                     panic!("[Move::from_algebra] unkonwn suffix: \"{}\"", extras);
                 }
@@ -281,6 +285,8 @@ impl Board {
                 if new.rank_is(8) {
                     moves.push(Move{to: new, promotion: Some(PieceType::Queen), .. m});
                     moves.push(Move{to: new, promotion: Some(PieceType::Knight), .. m});
+                    moves.push(Move{to: new, promotion: Some(PieceType::Rook), .. m});
+                    moves.push(Move{to: new, promotion: Some(PieceType::Bishop), .. m});
                 } else {
                     moves.push(Move{to: new, .. m});
                 }
@@ -300,6 +306,8 @@ impl Board {
                 if new.rank_is(8) {
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Queen), .. m});
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Knight), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Rook), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Bishop), .. m});
                 } else {
                     moves.push(Move{to: new, takes: true, .. m});
                 }
@@ -314,6 +322,8 @@ impl Board {
                 if new.rank_is(8) {
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Queen), .. m});
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Knight), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Rook), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Bishop), .. m});
                 } else {
                     moves.push(Move{to: new, takes: true, .. m});
                 }
@@ -344,6 +354,8 @@ impl Board {
                 if new.rank_is(1) {
                     moves.push(Move{to: new, promotion: Some(PieceType::Queen), .. m});
                     moves.push(Move{to: new, promotion: Some(PieceType::Knight), .. m});
+                    moves.push(Move{to: new, promotion: Some(PieceType::Rook), .. m});
+                    moves.push(Move{to: new, promotion: Some(PieceType::Bishop), .. m});
                 } else {
                     moves.push(Move{to: new, .. m});
                 }
@@ -363,6 +375,8 @@ impl Board {
                 if new.rank_is(1) {
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Queen), .. m});
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Knight), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Rook), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Bishop), .. m});
                 } else {
                     moves.push(Move{to: new, takes: true, .. m});
                 }
@@ -377,6 +391,8 @@ impl Board {
                 if new.rank_is(1) {
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Queen), .. m});
                     moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Knight), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Rook), .. m});
+                    moves.push(Move{to: new, takes: true, promotion: Some(PieceType::Bishop), .. m});
                 } else {
                     moves.push(Move{to: new, takes: true, .. m});
                 }
@@ -899,11 +915,10 @@ impl fmt::Display for Move {//{{{
                     if self.en_passant { "e.p." } else { "" },
                 )?;
                 match self.promotion {
-                    Some(PieceType::Bishop) => write!(f, "B")?,
-                    Some(PieceType::Knight) => write!(f, "N")?,
-                    Some(PieceType::Rook)   => write!(f, "R")?,
-                    Some(PieceType::Queen)  => write!(f, "Q")?,
-                    Some(PieceType::King)   => write!(f, "K")?,
+                    Some(PieceType::Bishop) => write!(f, "=B")?,
+                    Some(PieceType::Knight) => write!(f, "=N")?,
+                    Some(PieceType::Rook)   => write!(f, "=R")?,
+                    Some(PieceType::Queen)  => write!(f, "=Q")?,
                     _ => {}
                 }
                 write!(f, "")
@@ -982,10 +997,14 @@ mod tests {
         let b = Board::from_fen("3n4/4P3/8/8/8/8/8/8 w - - 0 1");
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("e7-e8Q"));
-        should_be.insert(Move::from_algebra("e7-e8N"));
-        should_be.insert(Move::from_algebra("e7xd8Q"));
-        should_be.insert(Move::from_algebra("e7xd8N"));
+        should_be.insert(Move::from_algebra("e7-e8=Q"));
+        should_be.insert(Move::from_algebra("e7-e8=N"));
+        should_be.insert(Move::from_algebra("e7-e8=R"));
+        should_be.insert(Move::from_algebra("e7-e8=B"));
+        should_be.insert(Move::from_algebra("e7xd8=Q"));
+        should_be.insert(Move::from_algebra("e7xd8=N"));
+        should_be.insert(Move::from_algebra("e7xd8=R"));
+        should_be.insert(Move::from_algebra("e7xd8=B"));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
     }
@@ -995,10 +1014,14 @@ mod tests {
         let b = Board::from_fen("8/8/8/8/8/8/3p4/4N3/ b - - 0 1");
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("d2-d1Q"));
-        should_be.insert(Move::from_algebra("d2-d1N"));
-        should_be.insert(Move::from_algebra("d2xe1Q"));
-        should_be.insert(Move::from_algebra("d2xe1N"));
+        should_be.insert(Move::from_algebra("d2-d1=Q"));
+        should_be.insert(Move::from_algebra("d2-d1=N"));
+        should_be.insert(Move::from_algebra("d2-d1=R"));
+        should_be.insert(Move::from_algebra("d2-d1=B"));
+        should_be.insert(Move::from_algebra("d2xe1=Q"));
+        should_be.insert(Move::from_algebra("d2xe1=N"));
+        should_be.insert(Move::from_algebra("d2xe1=R"));
+        should_be.insert(Move::from_algebra("d2xe1=B"));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
     }
