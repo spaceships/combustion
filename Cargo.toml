@@ -5,3 +5,4 @@ authors = ["Brent Carmer <bcarmer@gmail.com>"]
 
 [dependencies]
 rand = "^0"
+regex = "^0"

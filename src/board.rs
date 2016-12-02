@@ -66,14 +66,14 @@ impl Color {
 
 impl Move {
     fn from_algebra(s: &str) -> Self {
-        if s == "0-0" {
+        if s == "O-O" {
             Move {
                 kind: PieceType::King,
                 from: Pos(0), to: Pos(0), takes: false,
                 en_passant: false, promotion: None,
                 castle: Some(Castle::Kingside),
             }
-        } else if s == "0-0-0" {
+        } else if s == "O-O-O" {
             Move {
                 kind: PieceType::King,
                 from: Pos(0), to: Pos(0), takes: false,
@@ -125,6 +125,75 @@ impl Move {
                 castle: None,
             }
         }
+    }
+
+    fn to_xboard_format(&self, c: Color) -> String {
+        match self.castle {
+            Some(Castle::Kingside)  =>
+                match c {
+                    Color::White => return "e1g1".to_string(),
+                    Color::Black => return "e8g8".to_string(),
+                },
+            Some(Castle::Queenside) =>
+                match c {
+                    Color::White => return "e1c1".to_string(),
+                    Color::Black => return "e8c8".to_string(),
+                },
+            None => {}
+        }
+        format!("{}{}{}{}", self.from, self.to,
+            if self.en_passant { "e.p." } else { "" },
+            match self.promotion {
+                Some(PieceType::Bishop) => "b",
+                Some(PieceType::Knight) => "n",
+                Some(PieceType::Rook)   => "r",
+                Some(PieceType::Queen)  => "q",
+                _ => ""
+            }
+        )
+    }
+
+    fn from_xboard_format(&self, s: &str, b: Board) -> Move {
+        let from = Pos::from_algebra(&s[0..2]);
+        let to   = Pos::from_algebra(&s[2..4]);
+        let p = b.piece(from).unwrap();
+        let q = b.piece(to);
+        let extras = s[4..].to_string();
+        let mut prom = None;
+        let mut ep = false;
+        if extras == "e.p." {
+            ep = true;
+        } else if extras == "q" {
+            prom = Some(PieceType::Queen);
+        } else if extras == "r" {
+            prom = Some(PieceType::Rook);
+        } else if extras == "n" {
+            prom = Some(PieceType::Knight);
+        } else if extras == "b" {
+            prom = Some(PieceType::Bishop);
+        }
+        let mut castle = None;
+        if from == Pos::from_algebra("e1") && to == Pos::from_algebra("g1") ||
+           from == Pos::from_algebra("e8") && to == Pos::from_algebra("g8")
+        {
+            castle == Some(Castle::Kingside);
+        } else
+        if from == Pos::from_algebra("e1") && to == Pos::from_algebra("c1") ||
+           from == Pos::from_algebra("e8") && to == Pos::from_algebra("c8")
+        {
+            castle == Some(Castle::Queenside);
+        }
+        let m = Move {
+            kind: p.kind,
+            from: from,
+            to: to,
+            takes: q.is_some(),
+            en_passant: ep,
+            promotion: prom,
+            castle: castle,
+        };
+        assert!(b.legal_moves().contains(&m));
+        m
     }
 }
 
@@ -1183,7 +1252,7 @@ impl fmt::Display for Move {//{{{
                 }
                 write!(f, "{}{}{}{}",
                     self.from,
-                    if self.takes { "x" } else { "-" },
+                    if self.takes { "x" } else { "" },
                     self.to,
                     if self.en_passant { "e.p." } else { "" },
                 )?;
@@ -1608,8 +1677,8 @@ mod tests {
         let b = Board::from_fen("8/8/8/8/8/8/8/R3K2R w KQ - 0 1");
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("0-0"));
-        should_be.insert(Move::from_algebra("0-0-0"));
+        should_be.insert(Move::from_algebra("O-O"));
+        should_be.insert(Move::from_algebra("O-O-O"));
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1617,11 +1686,11 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert!(should_be.is_subset(&res));
         assert_eq!(
-            b.make_move(&Move::from_algebra("0-0")),
+            b.make_move(&Move::from_algebra("O-O")),
             Board::from_fen("8/8/8/8/8/8/8/R31RK1 b - - 1 1")
         );
         assert_eq!(
-            b.make_move(&Move::from_algebra("0-0-0")),
+            b.make_move(&Move::from_algebra("O-O-O")),
             Board::from_fen("8/8/8/8/8/8/8/2KR3R b - - 1 1")
         );
     }
@@ -1631,16 +1700,16 @@ mod tests {
         let b = Board::from_fen("r3k2r/8/8/8/8/8/8/8 b kq - 0 1");
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("0-0"));
-        should_be.insert(Move::from_algebra("0-0-0"));
+        should_be.insert(Move::from_algebra("O-O"));
+        should_be.insert(Move::from_algebra("O-O-O"));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert!(should_be.is_subset(&res));
         assert_eq!(
-            b.make_move(&Move::from_algebra("0-0")),
+            b.make_move(&Move::from_algebra("O-O")),
             Board::from_fen("r31rk1/8/8/8/8/8/8/8 w - - 1 2")
         );
         assert_eq!(
-            b.make_move(&Move::from_algebra("0-0-0")),
+            b.make_move(&Move::from_algebra("O-O-O")),
             Board::from_fen("2kr3r/8/8/8/8/8/8/8 w - - 1 2")
         );
     }
@@ -1651,7 +1720,7 @@ mod tests {
         // shouldn't be able to castle through threatened square!
         let b = Board::from_fen("8/8/8/8/8/5q3/8/4K2R w KQ - 0 1");
         println!("\n{}",b);
-        b.make_move(&Move::from_algebra("0-0"));
+        b.make_move(&Move::from_algebra("O-O"));
     }
 //}}}
     #[test] // black_castling_through_threat {{{
@@ -1660,7 +1729,7 @@ mod tests {
         // shouldn't be able to castle through threatened square!
         let b = Board::from_fen("4k2r/8/5Q3/8/8/8/8/8 b kq - 0 1");
         println!("\n{}",b);
-        b.make_move(&Move::from_algebra("0-0"));
+        b.make_move(&Move::from_algebra("O-O"));
     }
 //}}}
 }
