@@ -23,6 +23,9 @@ struct Piece {
     color: Color,
 }
 
+// const WHITE_KING: Piece = Piece { kind: PieceType::King, color: Color::White };
+// const BLACK_KING: Piece = Piece { kind: PieceType::King, color: Color::White };
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 enum Castle {
     Kingside,
@@ -149,10 +152,10 @@ impl Board {
         self.board[Pos::from_algebra(s).0].take()
     }
 
-    fn put_piece_at(&mut self, p: Option<Piece>, s: &str) {
+    fn put_piece_at(&mut self, p: Piece, s: &str) {
         let pos = Pos::from_algebra(s);
         assert!(self.piece(pos).is_none());
-        self.board[pos.0] = p;
+        self.board[pos.0] = Some(p);
     }
 
     fn pieces(&self, f: &Fn(Piece) -> bool) -> Vec<(Pos, Piece)> {
@@ -165,6 +168,15 @@ impl Board {
             });
         }
         res
+    }
+
+    fn get_pieces_by_type_and_color(&self, k: PieceType, c: Color) -> Vec<(Pos, Piece)> {
+        let q = Piece { kind: k, color: c };
+        self.pieces(&|p| p == q)
+    }
+
+    fn get_pieces_by_color(&self, c: Color) -> Vec<(Pos, Piece)> {
+        self.pieces(&|p| p.color == c)
     }
 
     fn occupied(&self, pos: Pos) -> bool {
@@ -189,28 +201,222 @@ impl Board {
         }
     }
 
+    fn threatens(&self, c: Color, old: Pos) -> bool {//{{{
+        for (new, piece) in self.get_pieces_by_color(c) {
+            match piece.kind {
+                PieceType::Pawn => {
+                    match c {
+                        Color::White => {
+                            // omg en passant is complicated
+                            if new.northeast(1).map_or(false, |ray|
+                                ray == old || self.is_en_passant_target(ray) && ray.south(1).unwrap() == old) ||
+                               new.northwest(1).map_or(false, |ray|
+                                ray == old || self.is_en_passant_target(ray) && ray.south(1).unwrap() == old)
+                            {
+                                return true;
+                            }
+                        }
+                        Color::Black => {
+                            if new.southeast(1).map_or(false, |ray|
+                                ray == old || self.is_en_passant_target(ray) && ray.north(1).unwrap() == old) ||
+                               new.southeast(1).map_or(false, |ray|
+                                ray == old || self.is_en_passant_target(ray) && ray.north(1).unwrap() == old)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+
+                PieceType::King => {
+                    if new.mv( 1, 1).map_or(false, |ray| ray == old) ||
+                       new.mv( 1, 0).map_or(false, |ray| ray == old) ||
+                       new.mv( 1,-1).map_or(false, |ray| ray == old) ||
+                       new.mv( 0, 1).map_or(false, |ray| ray == old) ||
+                       new.mv( 0,-1).map_or(false, |ray| ray == old) ||
+                       new.mv(-1, 0).map_or(false, |ray| ray == old) ||
+                       new.mv(-1, 0).map_or(false, |ray| ray == old) ||
+                       new.mv(-1,-1).map_or(false, |ray| ray == old)
+                    {
+                        return true;
+                    }
+                }
+
+                PieceType::Knight => {
+                    if new.mv( 1, 2).map_or(false, |ray| ray == old) ||
+                       new.mv( 1,-2).map_or(false, |ray| ray == old) ||
+                       new.mv(-1,-2).map_or(false, |ray| ray == old) ||
+                       new.mv(-1, 2).map_or(false, |ray| ray == old) ||
+                       new.mv( 2, 1).map_or(false, |ray| ray == old) ||
+                       new.mv( 2,-1).map_or(false, |ray| ray == old) ||
+                       new.mv(-2,-1).map_or(false, |ray| ray == old) ||
+                       new.mv(-2, 1).map_or(false, |ray| ray == old)
+                    {
+                        return true;
+                    }
+                }
+
+                PieceType::Rook => {
+                    let mut ray = new;
+                    while ray.north(1).is_some() {
+                        ray = ray.north(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.south(1).is_some() {
+                        ray = ray.south(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.east(1).is_some() {
+                        ray = ray.east(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.west(1).is_some() {
+                        ray = ray.west(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+                }
+
+                PieceType::Bishop => {
+                    let mut ray = new;
+                    while ray.northeast(1).is_some() {
+                        ray = ray.northeast(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.northwest(1).is_some() {
+                        ray = ray.northwest(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.southeast(1).is_some() {
+                        ray = ray.southeast(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.southwest(1).is_some() {
+                        ray = ray.southwest(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+                }
+
+                PieceType::Queen => {
+                    let mut ray = new;
+                    while ray.north(1).is_some() {
+                        ray = ray.north(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.south(1).is_some() {
+                        ray = ray.south(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.east(1).is_some() {
+                        ray = ray.east(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.west(1).is_some() {
+                        ray = ray.west(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.northeast(1).is_some() {
+                        ray = ray.northeast(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.northwest(1).is_some() {
+                        ray = ray.northwest(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.southeast(1).is_some() {
+                        ray = ray.southeast(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+
+                    ray = new;
+                    while ray.southwest(1).is_some() {
+                        ray = ray.southwest(1).unwrap();
+                        if ray == old { return true }
+                        if self.piece(ray).is_some() { break }
+                    }
+                }
+            }
+        }
+        false
+    }
+//}}}
+
     fn make_move(&self, mv: &Move) -> Board {
         let col = self.color_to_move;
         let mut b = Board { color_to_move: col.other(), .. *self };
         if col == Color::Black {
             b.move_number += 1;
         }
+        if mv.takes || mv.kind == PieceType::Pawn {
+            b.halfmove_clock = 0;
+        } else {
+            b.halfmove_clock += 1;
+        }
         if let Some(c) = mv.castle {
             match c {
                 Castle::Kingside => {
+                    // TODO: check for checks
                     assert!(self.castle_kingside_rights(col));
                     match col {
                         Color::White => {
-                            let k = b.get_piece_at("e1");
-                            let r = b.get_piece_at("h1");
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("e1")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("f1")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("g1")));
+                            let k = b.get_piece_at("e1")
+                                .expect("[make_move] tried to castle kingside but no king at e1!");
+                            let r = b.get_piece_at("h1")
+                                .expect("[make_move] tried to castle kingside but no rook at h1!");
                             b.put_piece_at(k, "g1");
                             b.put_piece_at(r, "f1");
                             b.castle_rights[0] = false;
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            let k = b.get_piece_at("e8");
-                            let r = b.get_piece_at("h8");
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("e8")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("f8")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("g8")));
+                            let k = b.get_piece_at("e8")
+                                .expect("[make_move] tried to castle kingside but no king at e8!");
+                            let r = b.get_piece_at("h8")
+                                .expect("[make_move] tried to castle kingside but no rook at h8!");
                             b.put_piece_at(k, "g8");
                             b.put_piece_at(r, "f8");
                             b.castle_rights[2] = false;
@@ -220,19 +426,80 @@ impl Board {
                 }
                 Castle::Queenside => {
                     assert!(self.castle_queenside_rights(col));
+                    match col {
+                        Color::White => {
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("e1")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("d1")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("c1")));
+                            let k = b.get_piece_at("e1")
+                                .expect("[make_move] tried to castle queenside but no king at e1!");
+                            let r = b.get_piece_at("a1")
+                                .expect("[make_move] tried to castle queenside but no rook at a1!");
+                            b.put_piece_at(k, "c1");
+                            b.put_piece_at(r, "d1");
+                            b.castle_rights[0] = false;
+                            b.castle_rights[1] = false;
+                        }
+                        Color::Black => {
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("e8")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("d8")));
+                            assert!(!self.threatens(col.other(), Pos::from_algebra("c8")));
+                            let k = b.get_piece_at("e8")
+                                .expect("[make_move] tried to castle queenside but no king at e8!");
+                            let r = b.get_piece_at("a8")
+                                .expect("[make_move] tried to castle queenside but no rook at a8!");
+                            b.put_piece_at(k, "c8");
+                            b.put_piece_at(r, "d8");
+                            b.castle_rights[2] = false;
+                            b.castle_rights[3] = false;
+                        }
+                    }
                 }
             }
         } else if mv.en_passant {
-            unimplemented!();
-        } else if let Some(prom) = mv.promotion {
-            unimplemented!();
-        } else {
-            let p = b.board[mv.from.0].take()
-                .expect(&format!("[make_move] no piece at {}", mv.from));
+            // check that en_passant is valid
+            let ep = b.en_passant_target.take().expect(&format!("[make_move] {}: en passant not allowed!", mv));
+            assert_eq!(ep, mv.to);
+            // check that some piece exists at mv.from
+            let p = b.board[mv.from.0].take().expect(&format!("[make_move] {}: no piece at {}", mv, mv.from));
+            // check that we are moving a white piece if it is white's turn
             assert_eq!(p.color, col);
-            let q = b.board[mv.to.0].take();
-            assert_eq!(mv.takes, q.is_some());
+            // find the position of the piece we are capturing
+            let target_piece_at = match col {
+                Color::White => mv.to.south(1).unwrap(),
+                Color::Black => mv.to.north(1).unwrap(),
+            };
+            assert!(b.board[mv.to.0].is_none());
+            // remove the target piece from the board
+            let q = b.board[target_piece_at.0].take();
+            // check that there was actually something there
+            assert!(q.is_some());
+            // check that we're taking a piece of the opposite color!
+            assert!(q.map_or(false, |q| q.color == col.other()));
+            // place the capturing piece
             b.board[mv.to.0] = Some(p);
+            // reset en passant target
+            b.en_passant_target = None;
+        } else {
+            // grab the moving/capturing piece
+            let p = b.board[mv.from.0].take().expect(&format!("[make_move] {}: no piece at {}", mv, mv.from));
+            // check that it is the right color
+            assert_eq!(p.color, col);
+            // grab the potentially nonexistant target piece
+            let q = b.board[mv.to.0].take();
+            // if the move is a capture, check that there actually was a piece there
+            assert_eq!(mv.takes, q.is_some());
+            // check that we're taking a piece of the opposite color
+            assert!(q.map_or(true, |q| q.color == col.other()));
+
+            // possibly promote, but only for pawns
+            if let Some(prom) = mv.promotion {
+                assert_eq!(p.kind, PieceType::Pawn);
+                b.board[mv.to.0] = Some(Piece{ kind: prom, .. p});
+            } else {
+                // place moving/capturing piece
+                b.board[mv.to.0] = Some(p);
+            }
         }
         b
     }
@@ -243,7 +510,7 @@ impl Board {
     fn legal_moves(&self) -> Vec<Move> {
         let c = self.color_to_move;
         let mut moves = Vec::new();
-        for (loc, p) in self.pieces(&|p: Piece| p.color == c) {
+        for (loc, p) in self.get_pieces_by_color(c) {
             match p.kind {
                 PieceType::Pawn   => moves.extend(self.pawn_moves(loc, c)),
                 PieceType::Queen  => moves.extend(self.queen_moves(loc, c)),
@@ -253,10 +520,11 @@ impl Board {
                 PieceType::King   => moves.extend(self.king_moves(loc, c)),
             }
         }
-        for m in moves.iter() {
-            println!("{}", m);
-        }
-        moves
+        // check that none of the moves put the king in check
+        moves.into_iter().filter(|m| {
+            let kings = self.make_move(m).get_pieces_by_type_and_color(PieceType::King, c);
+            kings.len() == 0 || !self.threatens(c.other(), kings[0].0)
+        }).collect()
     }
 
     fn pawn_moves(&self, loc: Pos, c: Color) -> Vec<Move> {//{{{
@@ -662,9 +930,12 @@ impl Board {
             castle: None,
         };
 
+        // threatened by the other color
         if self.castle_kingside_rights(c) &&
             !self.occupied(old.east(1).expect("[Board::king_moves] confusing castling rights!")) &&
-            !self.occupied(old.east(2).expect("[Board::king_moves] confusing castling rights!"))
+            !self.occupied(old.east(2).expect("[Board::king_moves] confusing castling rights!")) &&
+            !self.threatens(c.other(), old) &&
+            !self.threatens(c.other(), old.east(1).unwrap())
         {
             moves.push(Move{castle: Some(Castle::Kingside),..castle});
         }
@@ -672,7 +943,9 @@ impl Board {
         if self.castle_queenside_rights(c) &&
             !self.occupied(old.west(1).expect("[Board::king_moves] confusing castling rights!")) &&
             !self.occupied(old.west(2).expect("[Board::king_moves] confusing castling rights!")) &&
-            !self.occupied(old.west(3).expect("[Board::king_moves] confusing castling rights!"))
+            !self.occupied(old.west(3).expect("[Board::king_moves] confusing castling rights!")) &&
+            !self.threatens(c.other(), old) &&
+            !self.threatens(c.other(), old.west(1).unwrap())
         {
             moves.push(Move{castle: Some(Castle::Queenside),..castle});
         }
@@ -931,7 +1204,7 @@ impl fmt::Display for Move {//{{{
 
 #[cfg(test)]//{{{
 mod tests {
-    use board::{Board, Move};
+    use board::{Board, Move, Color, Pos};
     use std::collections::HashSet;
 //}}}
     #[test] // initial_moves//{{{
@@ -954,6 +1227,10 @@ mod tests {
         should_be.insert(Move::from_algebra("d2-d3"));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("b2-b3")),
+            Board::from_fen("8/8/8/8/3p4/pPp5/3P4/8 b - - 0 1")
+        );
     }
 //}}}
     #[test] // black_pawn//{{{
@@ -968,6 +1245,10 @@ mod tests {
         should_be.insert(Move::from_algebra("h7-h6"));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("c7-c5")),
+            Board::from_fen("8/7p/1P1P4/2p4P/8/8/8/8 w - - 0 2")
+        );
     }
 //}}}
     #[test] // white_en_passant//{{{
@@ -979,6 +1260,11 @@ mod tests {
         should_be.insert(Move::from_algebra("b5xa6e.p."));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert!(b.threatens(Color::White, Pos::from_algebra("a6")));
+        assert_eq!(
+            b.make_move(&Move::from_algebra("b5xa6e.p.")),
+            Board::from_fen("8/8/P7/8/8/8/8/8 b - - 0 1")
+        );
     }
 //}}}
     #[test] // black_en_passant //{{{
@@ -990,6 +1276,11 @@ mod tests {
         should_be.insert(Move::from_algebra("a4xb3e.p."));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert!(b.threatens(Color::Black, Pos::from_algebra("b3")));
+        assert_eq!(
+            b.make_move(&Move::from_algebra("a4xb3e.p.")),
+            Board::from_fen("8/8/8/8/8/1p6/8/8 w - - 0 2")
+        );
     }
 //}}}
     #[test] // white_promotion//{{{
@@ -1007,6 +1298,10 @@ mod tests {
         should_be.insert(Move::from_algebra("e7xd8=B"));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("e7-e8=N")),
+            Board::from_fen("3nN4/8/8/8/8/8/8/8 b - - 0 1")
+        );
     }
 //}}}
     #[test] // black_promotion//{{{
@@ -1024,6 +1319,10 @@ mod tests {
         should_be.insert(Move::from_algebra("d2xe1=B"));
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("d2xe1=B")),
+            Board::from_fen("8/8/8/8/8/8/8/4b3 w - - 0 2")
+        );
     }
 //}}}
     #[test] // white_queen//{{{
@@ -1056,6 +1355,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Qe7-b4")),
+            Board::from_fen("3n1q3/8/8/4p3/1Q5P/p7/8/8 b - - 1 1")
+        );
     }
 //}}}
     #[test] // black_queen//{{{
@@ -1088,6 +1391,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Qe7-b4")),
+            Board::from_fen("3N1Q3/8/8/4P3/1q5p/P7/8/8 w - - 1 2")
+        );
     }
 //}}}
     #[test] // white_rook//{{{
@@ -1112,6 +1419,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Re7-f7")),
+            Board::from_fen("3n1q3/5R2/8/4p3/7P/p7/8/8 b - - 1 1")
+        );
     }
 //}}}
     #[test] // black_rook//{{{
@@ -1136,6 +1447,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Re7-f7")),
+            Board::from_fen("3N1Q3/5r2/8/4P3/7p/P7/8/8 w - - 1 2")
+        );
     }
 //}}}
     #[test] // white_bishop//{{{
@@ -1158,6 +1473,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Be7xd8")),
+            Board::from_fen("3B1q3/8/8/4p3/7P/p7/8/8 b - - 0 1")
+        );
     }
 //}}}
     #[test] // black_bishop//{{{
@@ -1180,6 +1499,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Be7xd8")),
+            Board::from_fen("3b1Q3/8/8/4P3/7p/P7/8/8 w - - 0 2")
+        );
     }
 //}}}
     #[test] // white_knight//{{{
@@ -1203,6 +1526,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Ne4-c5")),
+            Board::from_fen("N7/2p5/8/2N5/8/2p5/8/8 b - - 1 1")
+        );
     }
 //}}}
     #[test] // black_knight//{{{
@@ -1226,6 +1553,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Ne4-c5")),
+            Board::from_fen("n7/2P5/8/2n5/8/2P5/8/8 w - - 1 2")
+        );
     }
 //}}}
     #[test] // white_king//{{{
@@ -1234,19 +1565,20 @@ mod tests {
         println!("\n{}", b);
         let mut should_be = HashSet::new();
         should_be.insert(Move::from_algebra("Kc6xb7"));
-        should_be.insert(Move::from_algebra("Kc6-c7"));
         should_be.insert(Move::from_algebra("Kc6-d7"));
-        should_be.insert(Move::from_algebra("Kc6-b6"));
         should_be.insert(Move::from_algebra("Kc6-d5"));
         should_be.insert(Move::from_algebra("Kc6xb5"));
         should_be.insert(Move::from_algebra("Kc6-c5"));
-        should_be.insert(Move::from_algebra("d6-d7"));
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Kc6xb7")),
+            Board::from_fen("n/1K6/3P5/1p6/8/8/8/8 b - - 0 1")
+        );
     }
 //}}}
     #[test] // black_king//{{{
@@ -1254,11 +1586,8 @@ mod tests {
         let b = Board::from_fen("N/1P6/2kp5/1P6/8/8/8/8 b - - 0 1");
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("d6-d5"));
         should_be.insert(Move::from_algebra("Kc6xb7"));
-        should_be.insert(Move::from_algebra("Kc6-c7"));
         should_be.insert(Move::from_algebra("Kc6-d7"));
-        should_be.insert(Move::from_algebra("Kc6-b6"));
         should_be.insert(Move::from_algebra("Kc6-d5"));
         should_be.insert(Move::from_algebra("Kc6xb5"));
         should_be.insert(Move::from_algebra("Kc6-c5"));
@@ -1268,6 +1597,10 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(res, should_be);
+        assert_eq!(
+            b.make_move(&Move::from_algebra("Kc6xb7")),
+            Board::from_fen("N/1k6/3p5/1P6/8/8/8/8 w - - 0 2")
+        );
     }
     //}}}
     #[test] // white_castling//{{{
@@ -1283,6 +1616,14 @@ mod tests {
         }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert!(should_be.is_subset(&res));
+        assert_eq!(
+            b.make_move(&Move::from_algebra("0-0")),
+            Board::from_fen("8/8/8/8/8/8/8/R31RK1 b - - 1 1")
+        );
+        assert_eq!(
+            b.make_move(&Move::from_algebra("0-0-0")),
+            Board::from_fen("8/8/8/8/8/8/8/2KR3R b - - 1 1")
+        );
     }
 //}}}
     #[test] // black_castling//{{{
@@ -1292,19 +1633,34 @@ mod tests {
         let mut should_be = HashSet::new();
         should_be.insert(Move::from_algebra("0-0"));
         should_be.insert(Move::from_algebra("0-0-0"));
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert!(should_be.is_subset(&res));
+        assert_eq!(
+            b.make_move(&Move::from_algebra("0-0")),
+            Board::from_fen("r31rk1/8/8/8/8/8/8/8 w - - 1 2")
+        );
+        assert_eq!(
+            b.make_move(&Move::from_algebra("0-0-0")),
+            Board::from_fen("2kr3r/8/8/8/8/8/8/8 w - - 1 2")
+        );
     }
 //}}}
-
-    #[test] // make_move
-    fn make_move() {
-        let b = Board::from_fen("r3k2r/8/8/8/8/8/8/8 b kq - 0 1");
-        let should_be = Board::from_fen("r31rk1/8/8/8/8/8/8/8 w - - 0 2");
-        assert_eq!(b.make_move(&Move::from_algebra("0-0")), should_be);
+    #[test] // white_castling_through_threat {{{
+    #[should_panic]
+    fn white_castling_through_threat() {
+        // shouldn't be able to castle through threatened square!
+        let b = Board::from_fen("8/8/8/8/8/5q3/8/4K2R w KQ - 0 1");
+        println!("\n{}",b);
+        b.make_move(&Move::from_algebra("0-0"));
     }
+//}}}
+    #[test] // black_castling_through_threat {{{
+    #[should_panic]
+    fn black_castling_through_threat() {
+        // shouldn't be able to castle through threatened square!
+        let b = Board::from_fen("4k2r/8/5Q3/8/8/8/8/8 b kq - 0 1");
+        println!("\n{}",b);
+        b.make_move(&Move::from_algebra("0-0"));
+    }
+//}}}
 }
