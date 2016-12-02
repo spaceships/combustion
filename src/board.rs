@@ -1,4 +1,4 @@
-use util::{from_algebra, to_algebra};
+use util::{from_algebra, to_algebra, ChessError};
 use std::fmt;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -65,21 +65,21 @@ impl Color {
 }
 
 impl Move {
-    fn from_algebra(s: &str) -> Self {
+    fn from_algebra(s: &str) -> Result<Move, ChessError> {
         if s == "O-O" {
-            Move {
+            Ok( Move {
                 kind: PieceType::King,
                 from: Pos(0), to: Pos(0), takes: false,
                 en_passant: false, promotion: None,
                 castle: Some(Castle::Kingside),
-            }
+            })
         } else if s == "O-O-O" {
-            Move {
+            Ok( Move {
                 kind: PieceType::King,
                 from: Pos(0), to: Pos(0), takes: false,
                 en_passant: false, promotion: None,
                 castle: Some(Castle::Queenside)
-            }
+            })
         } else {
             let mut cs: Vec<char> = s.chars().collect();
             let kind = match cs[0] {
@@ -90,7 +90,7 @@ impl Move {
                         'R' => PieceType::Rook,
                         'Q' => PieceType::Queen,
                         'K' => PieceType::King,
-                        _ => panic!("shouldn't be getting here ever..."),
+                        c   => parse_error!("[Move::from_algebra] expected one of {{B,N,R,Q,K}}, got: \"{}\"", c),
                     }
                 }
                 _ => PieceType::Pawn,
@@ -112,10 +112,10 @@ impl Move {
                 } else if extras == "=B" {
                     promotion = Some(PieceType::Bishop);
                 } else {
-                    panic!("[Move::from_algebra] unkonwn suffix: \"{}\"", extras);
+                    parse_error!("[Move::from_algebra] unknown suffix: \"{}\"", extras);
                 }
             }
-            Move {
+            Ok(Move {
                 kind: kind,
                 from: Pos(from_algebra(&from)),
                 to: Pos(from_algebra(&to)),
@@ -123,7 +123,7 @@ impl Move {
                 en_passant: ep,
                 promotion: promotion,
                 castle: None,
-            }
+            })
         }
     }
 
@@ -153,7 +153,7 @@ impl Move {
         )
     }
 
-    fn from_xboard_format(&self, s: &str, b: Board) -> Move {
+    fn from_xboard_format(&self, s: &str, b: Board) -> Result<Move, ChessError> {
         let from = Pos::from_algebra(&s[0..2]);
         let to   = Pos::from_algebra(&s[2..4]);
         let p = b.piece(from).unwrap();
@@ -171,17 +171,16 @@ impl Move {
             prom = Some(PieceType::Knight);
         } else if extras == "b" {
             prom = Some(PieceType::Bishop);
+        } else {
+            parse_error!("[Move::from_xboard_format] unknown suffix: \"{}\"", extras);
         }
         let mut castle = None;
         if from == Pos::from_algebra("e1") && to == Pos::from_algebra("g1") ||
-           from == Pos::from_algebra("e8") && to == Pos::from_algebra("g8")
-        {
-            castle == Some(Castle::Kingside);
-        } else
-        if from == Pos::from_algebra("e1") && to == Pos::from_algebra("c1") ||
-           from == Pos::from_algebra("e8") && to == Pos::from_algebra("c8")
-        {
-            castle == Some(Castle::Queenside);
+           from == Pos::from_algebra("e8") && to == Pos::from_algebra("g8") {
+            castle = Some(Castle::Kingside);
+        } else if from == Pos::from_algebra("e1") && to == Pos::from_algebra("c1") ||
+                  from == Pos::from_algebra("e8") && to == Pos::from_algebra("c8") {
+            castle = Some(Castle::Queenside);
         }
         let m = Move {
             kind: p.kind,
@@ -192,8 +191,7 @@ impl Move {
             promotion: prom,
             castle: castle,
         };
-        assert!(b.legal_moves().contains(&m));
-        m
+        Ok(m)
     }
 }
 
@@ -210,7 +208,7 @@ impl Board {
     }
 
     pub fn initial() -> Self {
-        Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap()
     }
 
     fn piece(&self, loc: Pos) -> Option<Piece> {
@@ -448,7 +446,7 @@ impl Board {
     }
 //}}}
 
-    fn make_move(&self, mv: &Move) -> Board {
+    fn make_move(&self, mv: &Move) -> Result<Board, ChessError> {
         let col = self.color_to_move;
         let mut b = Board { color_to_move: col.other(), .. *self };
         if col == Color::Black {
@@ -462,30 +460,43 @@ impl Board {
         if let Some(c) = mv.castle {
             match c {
                 Castle::Kingside => {
-                    // TODO: check for checks
-                    assert!(self.castle_kingside_rights(col));
+                    if !self.castle_kingside_rights(col) {
+                        illegal_move_error!("[make_move] {}: kingside castle without rights!", mv);
+                    }
                     match col {
                         Color::White => {
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("e1")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("f1")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("g1")));
-                            let k = b.get_piece_at("e1")
-                                .expect("[make_move] tried to castle kingside but no king at e1!");
-                            let r = b.get_piece_at("h1")
-                                .expect("[make_move] tried to castle kingside but no rook at h1!");
+                            if self.threatens(col.other(), Pos::from_algebra("e1")) ||
+                               self.threatens(col.other(), Pos::from_algebra("f1")) ||
+                               self.threatens(col.other(), Pos::from_algebra("g1")) {
+                                illegal_move_error!("[make_move] {}: white cannot castle kingside through check!", mv);
+                            }
+                            let k = match b.get_piece_at("e1") {
+                                Some(p@Piece{kind: PieceType::King, color: Color::White}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no white king at e1!", mv),
+                            };
+                            let r = match b.get_piece_at("h1") {
+                                Some(p@Piece{kind: PieceType::Rook, color: Color::White}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no white rook at h1!", mv),
+                            };
                             b.put_piece_at(k, "g1");
                             b.put_piece_at(r, "f1");
                             b.castle_rights[0] = false;
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("e8")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("f8")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("g8")));
-                            let k = b.get_piece_at("e8")
-                                .expect("[make_move] tried to castle kingside but no king at e8!");
-                            let r = b.get_piece_at("h8")
-                                .expect("[make_move] tried to castle kingside but no rook at h8!");
+                            if self.threatens(col.other(), Pos::from_algebra("e8")) ||
+                               self.threatens(col.other(), Pos::from_algebra("f8")) ||
+                               self.threatens(col.other(), Pos::from_algebra("g8")) {
+                                illegal_move_error!("[make_move] {} black cannot castle kingside through check!", mv);
+                            }
+                            let k = match b.get_piece_at("e8") {
+                                Some(p@Piece{kind: PieceType::King, color: Color::Black}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no black king at e8!", mv),
+                            };
+                            let r = match b.get_piece_at("h8") {
+                                Some(p@Piece{kind: PieceType::Rook, color: Color::Black}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no black rook at h8!", mv),
+                            };
                             b.put_piece_at(k, "g8");
                             b.put_piece_at(r, "f8");
                             b.castle_rights[2] = false;
@@ -494,29 +505,43 @@ impl Board {
                     }
                 }
                 Castle::Queenside => {
-                    assert!(self.castle_queenside_rights(col));
+                    if !self.castle_queenside_rights(col) {
+                        illegal_move_error!("[make_move] {}: queenside castle without rights!", mv);
+                    }
                     match col {
                         Color::White => {
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("e1")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("d1")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("c1")));
-                            let k = b.get_piece_at("e1")
-                                .expect("[make_move] tried to castle queenside but no king at e1!");
-                            let r = b.get_piece_at("a1")
-                                .expect("[make_move] tried to castle queenside but no rook at a1!");
+                            if self.threatens(col.other(), Pos::from_algebra("e1")) ||
+                               self.threatens(col.other(), Pos::from_algebra("d1")) ||
+                               self.threatens(col.other(), Pos::from_algebra("c1")) {
+                                illegal_move_error!("[make_move] {}: white cannot castle queenside through check!", mv);
+                            }
+                            let k = match b.get_piece_at("e1") {
+                                Some(p@Piece{kind: PieceType::King, color: Color::White}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no white king at e1!", mv),
+                            };
+                            let r = match b.get_piece_at("a1") {
+                                Some(p@Piece{kind: PieceType::Rook, color: Color::White}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no white rook at a1!", mv),
+                            };
                             b.put_piece_at(k, "c1");
                             b.put_piece_at(r, "d1");
                             b.castle_rights[0] = false;
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("e8")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("d8")));
-                            assert!(!self.threatens(col.other(), Pos::from_algebra("c8")));
-                            let k = b.get_piece_at("e8")
-                                .expect("[make_move] tried to castle queenside but no king at e8!");
-                            let r = b.get_piece_at("a8")
-                                .expect("[make_move] tried to castle queenside but no rook at a8!");
+                            if self.threatens(col.other(), Pos::from_algebra("e8")) ||
+                               self.threatens(col.other(), Pos::from_algebra("d8")) ||
+                               self.threatens(col.other(), Pos::from_algebra("c8")) {
+                                illegal_move_error!("[make_move] {}: black cannot castle queenside through check!", mv);
+                            }
+                            let k = match b.get_piece_at("e8") {
+                                Some(p@Piece{kind: PieceType::King, color: Color::Black}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no black king at e8!", mv),
+                            };
+                            let r = match b.get_piece_at("a8") {
+                                Some(p@Piece{kind: PieceType::Rook, color: Color::Black}) => p,
+                                _ => illegal_move_error!("[make_move] {}: no black rook at a8!", mv),
+                            };
                             b.put_piece_at(k, "c8");
                             b.put_piece_at(r, "d8");
                             b.castle_rights[2] = false;
@@ -527,24 +552,42 @@ impl Board {
             }
         } else if mv.en_passant {
             // check that en_passant is valid
-            let ep = b.en_passant_target.take().expect(&format!("[make_move] {}: en passant not allowed!", mv));
-            assert_eq!(ep, mv.to);
+            let ep = match b.en_passant_target.take() {
+                Some(ep) => ep,
+                None => illegal_move_error!("[make_move] {}: enpassant not allowed!", mv),
+            };
+            if ep != mv.to {
+                illegal_move_error!("[make_move] {}: illegal en passant!", mv);
+            }
             // check that some piece exists at mv.from
-            let p = b.board[mv.from.0].take().expect(&format!("[make_move] {}: no piece at {}", mv, mv.from));
+            let p = match b.board[mv.from.0].take() {
+                Some(p) => p,
+                None => illegal_move_error!("[make_move] {}: no piece at {}", mv, mv.from),
+            };
             // check that we are moving a white piece if it is white's turn
-            assert_eq!(p.color, col);
+            if p.color != col {
+                illegal_move_error!("[make_move] {}: tried to move {}'s piece but it is {}'s turn!", mv, p.color, col);
+            }
             // find the position of the piece we are capturing
             let target_piece_at = match col {
                 Color::White => mv.to.south(1).unwrap(),
                 Color::Black => mv.to.north(1).unwrap(),
             };
-            assert!(b.board[mv.to.0].is_none());
+            // there should be no peice at the en passant target
+            match b.board[mv.to.0] {
+                Some(p) => board_state_error!("[make_move] {}: there should be no piece at {} but I found {}", mv, mv.to, p),
+                None => {}
+            }
             // remove the target piece from the board
             let q = b.board[target_piece_at.0].take();
             // check that there was actually something there
-            assert!(q.is_some());
+            if q.is_none() {
+                illegal_move_error!("[make_move] {}: there was no piece at {}!", mv, target_piece_at);
+            }
             // check that we're taking a piece of the opposite color!
-            assert!(q.map_or(false, |q| q.color == col.other()));
+            if q.map_or(false, |q| q.color == col) {
+                illegal_move_error!("[make_move] {}: taking a piece of the same color!", mv);
+            }
             // place the capturing piece
             b.board[mv.to.0] = Some(p);
             // reset en passant target
@@ -553,24 +596,31 @@ impl Board {
             // grab the moving/capturing piece
             let p = b.board[mv.from.0].take().expect(&format!("[make_move] {}: no piece at {}", mv, mv.from));
             // check that it is the right color
-            assert_eq!(p.color, col);
+            if p.color != col {
+                illegal_move_error!("[make_move] {}: tried to move {}'s piece but it is {}'s turn!", mv, p.color, col);
+            }
             // grab the potentially nonexistant target piece
             let q = b.board[mv.to.0].take();
             // if the move is a capture, check that there actually was a piece there
-            assert_eq!(mv.takes, q.is_some());
+            if mv.takes && q.is_none() {
+                illegal_move_error!("[make_move] {}: taking a nonexistent piece!", mv);
+            }
             // check that we're taking a piece of the opposite color
-            assert!(q.map_or(true, |q| q.color == col.other()));
-
+            if q.map_or(false, |q| q.color == col) {
+                illegal_move_error!("[make_move] {}: {} cannot take its own pieces!", mv, col);
+            }
             // possibly promote, but only for pawns
             if let Some(prom) = mv.promotion {
-                assert_eq!(p.kind, PieceType::Pawn);
+                if p.kind != PieceType::Pawn {
+                    illegal_move_error!("[make_move] {}: only pawns can promote!", mv);
+                }
                 b.board[mv.to.0] = Some(Piece{ kind: prom, .. p});
             } else {
                 // place moving/capturing piece
                 b.board[mv.to.0] = Some(p);
             }
         }
-        b
+        Ok(b)
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -591,7 +641,7 @@ impl Board {
         }
         // check that none of the moves put the king in check
         moves.into_iter().filter(|m| {
-            let kings = self.make_move(m).get_pieces_by_type_and_color(PieceType::King, c);
+            let kings = self.make_move(m).unwrap().get_pieces_by_type_and_color(PieceType::King, c);
             kings.len() == 0 || !self.threatens(c.other(), kings[0].0)
         }).collect()
     }
@@ -1022,7 +1072,7 @@ impl Board {
     }
 //}}}
 
-    pub fn from_fen(fen: &str) -> Self {//{{{
+    pub fn from_fen(fen: &str) -> Result<Board, ChessError> {//{{{
         let mut b = Board::new();
         let mut i = 0;
         let mut j = 0;
@@ -1030,8 +1080,9 @@ impl Board {
 
         let check = |i,j| {
             if i*8+j >= 64 {
-                let s = format!("[Board::from_fen] index out of bounds i={} j={}!", i, j);
-                panic!(s);
+                Err(ChessError::ParseError(format!("[from_fen] index out of bounds i={} j={}!", i, j)))
+            } else {
+                Ok(())
             }
         };
 
@@ -1045,20 +1096,20 @@ impl Board {
                     j += n.to_string().parse().expect("couldn't read number!");
                 }
 
-                'P' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
-                'p' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::Black }); j += 1; }
-                'B' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::White }); j += 1; }
-                'b' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::Black }); j += 1; }
-                'N' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::White }); j += 1; }
-                'n' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::Black }); j += 1; }
-                'R' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::White }); j += 1; }
-                'r' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::Black }); j += 1; }
-                'Q' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::White }); j += 1; }
-                'q' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::Black }); j += 1; }
-                'K' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::White }); j += 1; }
-                'k' => { check(i,j); b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::Black }); j += 1; }
+                'P' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
+                'p' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::Black }); j += 1; }
+                'B' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::White }); j += 1; }
+                'b' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::Black }); j += 1; }
+                'N' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::White }); j += 1; }
+                'n' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::Black }); j += 1; }
+                'R' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::White }); j += 1; }
+                'r' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::Black }); j += 1; }
+                'Q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::White }); j += 1; }
+                'q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::Black }); j += 1; }
+                'K' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::White }); j += 1; }
+                'k' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::Black }); j += 1; }
 
-                c => panic!("unexpected \"{}\"", c),
+                c => parse_error!("[from_fen] unexpected \"{}\"", c),
             }
         }
 
@@ -1066,7 +1117,7 @@ impl Board {
         match tokens[1] {
             "w"|"W" => b.color_to_move = Color::White,
             "b"|"B" => b.color_to_move = Color::Black,
-            c => panic!("unexpected \"{}\"", c),
+            c => parse_error!("[from_fen] unexpected \"{}\"", c),
         }
 
         // parse castling rights
@@ -1077,7 +1128,7 @@ impl Board {
                 'k' => b.castle_rights[2] = true,
                 'q' => b.castle_rights[3] = true,
                 '-' => {}
-                c => panic!("unexpected \"{}\"", c),
+                c => parse_error!("[from_fen] unexpected \"{}\"", c),
             }
         }
 
@@ -1087,10 +1138,17 @@ impl Board {
             s   => b.en_passant_target = Some(Pos::from_algebra(s)),
         }
 
-        b.halfmove_clock = tokens[4].parse().expect("couldn't decode half move clock!");
-        b.move_number = tokens[5].parse().expect("couldn't decode move number!");
+        b.halfmove_clock = match tokens[4].parse() {
+            Ok(c) => c,
+            Err(_) => parse_error!("[from_fen] couldn't decode half move clock!"),
+        };
 
-        b
+        b.move_number = match tokens[5].parse() {
+            Ok(c) => c,
+            Err(_) => parse_error!("[from_fen] couldn't decode move number!"),
+        };
+
+        Ok(b)
     }
     //}}}
 }
@@ -1148,6 +1206,15 @@ impl Pos {
 impl fmt::Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl fmt::Display for Color {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Color::White => write!(f, "white"),
+            Color::Black => write!(f, "black"),
+        }
     }
 }
 
@@ -1278,146 +1345,146 @@ mod tests {
 //}}}
     #[test] // initial_moves//{{{
     fn initial_moves() {
-        let b = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+        let b = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         println!("\n{}", b);
         assert_eq!(b.legal_moves().len(), 20);
     }
 //}}}
     #[test] // white_pawn//{{{
     fn white_pawn() {
-        let b = Board::from_fen("8/8/8/8/3p4/p1p5/1P1P4/8 w - - 0 1");
+        let b = Board::from_fen("8/8/8/8/3p4/p1p5/1P1P4/8 w - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("b2-b3"));
-        should_be.insert(Move::from_algebra("b2-b4"));
-        should_be.insert(Move::from_algebra("b2xa3"));
-        should_be.insert(Move::from_algebra("b2xc3"));
-        should_be.insert(Move::from_algebra("d2xc3"));
-        should_be.insert(Move::from_algebra("d2-d3"));
+        should_be.insert(Move::from_algebra("b2-b3").unwrap());
+        should_be.insert(Move::from_algebra("b2-b4").unwrap());
+        should_be.insert(Move::from_algebra("b2xa3").unwrap());
+        should_be.insert(Move::from_algebra("b2xc3").unwrap());
+        should_be.insert(Move::from_algebra("d2xc3").unwrap());
+        should_be.insert(Move::from_algebra("d2-d3").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("b2-b3")),
-            Board::from_fen("8/8/8/8/3p4/pPp5/3P4/8 b - - 0 1")
+            b.make_move(&Move::from_algebra("b2-b3").unwrap()).unwrap(),
+            Board::from_fen("8/8/8/8/3p4/pPp5/3P4/8 b - - 0 1").unwrap()
         );
     }
 //}}}
     #[test] // black_pawn//{{{
     fn black_pawn() {
-        let b = Board::from_fen("8/2p4p/1P1P4/7P/8/8/8/8 b - - 0 1");
+        let b = Board::from_fen("8/2p4p/1P1P4/7P/8/8/8/8 b - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("c7-c5"));
-        should_be.insert(Move::from_algebra("c7-c6"));
-        should_be.insert(Move::from_algebra("c7xb6"));
-        should_be.insert(Move::from_algebra("c7xd6"));
-        should_be.insert(Move::from_algebra("h7-h6"));
+        should_be.insert(Move::from_algebra("c7-c5").unwrap());
+        should_be.insert(Move::from_algebra("c7-c6").unwrap());
+        should_be.insert(Move::from_algebra("c7xb6").unwrap());
+        should_be.insert(Move::from_algebra("c7xd6").unwrap());
+        should_be.insert(Move::from_algebra("h7-h6").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("c7-c5")),
-            Board::from_fen("8/7p/1P1P4/2p4P/8/8/8/8 w - - 0 2")
+            b.make_move(&Move::from_algebra("c7-c5").unwrap()).unwrap(),
+            Board::from_fen("8/7p/1P1P4/2p4P/8/8/8/8 w - - 0 2").unwrap()
         );
     }
 //}}}
     #[test] // white_en_passant//{{{
     fn white_en_passant() {
-        let b = Board::from_fen("8/8/8/pP6/8/8/8/8 w - a6 0 1");
+        let b = Board::from_fen("8/8/8/pP6/8/8/8/8 w - a6 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("b5-b6"));
-        should_be.insert(Move::from_algebra("b5xa6e.p."));
+        should_be.insert(Move::from_algebra("b5-b6").unwrap());
+        should_be.insert(Move::from_algebra("b5xa6e.p.").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert!(b.threatens(Color::White, Pos::from_algebra("a6")));
         assert_eq!(
-            b.make_move(&Move::from_algebra("b5xa6e.p.")),
-            Board::from_fen("8/8/P7/8/8/8/8/8 b - - 0 1")
+            b.make_move(&Move::from_algebra("b5xa6e.p.").unwrap()).unwrap(),
+            Board::from_fen("8/8/P7/8/8/8/8/8 b - - 0 1").unwrap()
         );
     }
 //}}}
     #[test] // black_en_passant //{{{
     fn black_en_passant() {
-        let b = Board::from_fen("8/8/8/8/pP6/8/8/8 b - b3 0 1");
+        let b = Board::from_fen("8/8/8/8/pP6/8/8/8 b - b3 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("a4-a3"));
-        should_be.insert(Move::from_algebra("a4xb3e.p."));
+        should_be.insert(Move::from_algebra("a4-a3").unwrap());
+        should_be.insert(Move::from_algebra("a4xb3e.p.").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert!(b.threatens(Color::Black, Pos::from_algebra("b3")));
         assert_eq!(
-            b.make_move(&Move::from_algebra("a4xb3e.p.")),
-            Board::from_fen("8/8/8/8/8/1p6/8/8 w - - 0 2")
+            b.make_move(&Move::from_algebra("a4xb3e.p.").unwrap()).unwrap(),
+            Board::from_fen("8/8/8/8/8/1p6/8/8 w - - 0 2").unwrap()
         );
     }
 //}}}
     #[test] // white_promotion//{{{
     fn white_promotion() {
-        let b = Board::from_fen("3n4/4P3/8/8/8/8/8/8 w - - 0 1");
+        let b = Board::from_fen("3n4/4P3/8/8/8/8/8/8 w - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("e7-e8=Q"));
-        should_be.insert(Move::from_algebra("e7-e8=N"));
-        should_be.insert(Move::from_algebra("e7-e8=R"));
-        should_be.insert(Move::from_algebra("e7-e8=B"));
-        should_be.insert(Move::from_algebra("e7xd8=Q"));
-        should_be.insert(Move::from_algebra("e7xd8=N"));
-        should_be.insert(Move::from_algebra("e7xd8=R"));
-        should_be.insert(Move::from_algebra("e7xd8=B"));
+        should_be.insert(Move::from_algebra("e7-e8=Q").unwrap());
+        should_be.insert(Move::from_algebra("e7-e8=N").unwrap());
+        should_be.insert(Move::from_algebra("e7-e8=R").unwrap());
+        should_be.insert(Move::from_algebra("e7-e8=B").unwrap());
+        should_be.insert(Move::from_algebra("e7xd8=Q").unwrap());
+        should_be.insert(Move::from_algebra("e7xd8=N").unwrap());
+        should_be.insert(Move::from_algebra("e7xd8=R").unwrap());
+        should_be.insert(Move::from_algebra("e7xd8=B").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("e7-e8=N")),
-            Board::from_fen("3nN4/8/8/8/8/8/8/8 b - - 0 1")
+            b.make_move(&Move::from_algebra("e7-e8=N").unwrap()).unwrap(),
+            Board::from_fen("3nN4/8/8/8/8/8/8/8 b - - 0 1").unwrap()
         );
     }
 //}}}
     #[test] // black_promotion//{{{
     fn black_promotion() {
-        let b = Board::from_fen("8/8/8/8/8/8/3p4/4N3/ b - - 0 1");
+        let b = Board::from_fen("8/8/8/8/8/8/3p4/4N3/ b - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("d2-d1=Q"));
-        should_be.insert(Move::from_algebra("d2-d1=N"));
-        should_be.insert(Move::from_algebra("d2-d1=R"));
-        should_be.insert(Move::from_algebra("d2-d1=B"));
-        should_be.insert(Move::from_algebra("d2xe1=Q"));
-        should_be.insert(Move::from_algebra("d2xe1=N"));
-        should_be.insert(Move::from_algebra("d2xe1=R"));
-        should_be.insert(Move::from_algebra("d2xe1=B"));
+        should_be.insert(Move::from_algebra("d2-d1=Q").unwrap());
+        should_be.insert(Move::from_algebra("d2-d1=N").unwrap());
+        should_be.insert(Move::from_algebra("d2-d1=R").unwrap());
+        should_be.insert(Move::from_algebra("d2-d1=B").unwrap());
+        should_be.insert(Move::from_algebra("d2xe1=Q").unwrap());
+        should_be.insert(Move::from_algebra("d2xe1=N").unwrap());
+        should_be.insert(Move::from_algebra("d2xe1=R").unwrap());
+        should_be.insert(Move::from_algebra("d2xe1=B").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("d2xe1=B")),
-            Board::from_fen("8/8/8/8/8/8/8/4b3 w - - 0 2")
+            b.make_move(&Move::from_algebra("d2xe1=B").unwrap()).unwrap(),
+            Board::from_fen("8/8/8/8/8/8/8/4b3 w - - 0 2").unwrap()
         );
     }
 //}}}
     #[test] // white_queen//{{{
     fn white_queen() {
-        let b = Board::from_fen("3n1q3/4Q3/8/4p3/7P/p7/8/8 w - - 0 1");
+        let b = Board::from_fen("3n1q3/4Q3/8/4p3/7P/p7/8/8 w - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Qe7xd8"));
-        should_be.insert(Move::from_algebra("Qe7xf8"));
-        should_be.insert(Move::from_algebra("Qe7xe5"));
-        should_be.insert(Move::from_algebra("Qe7xa3"));
-        should_be.insert(Move::from_algebra("Qe7-e6"));
-        should_be.insert(Move::from_algebra("Qe7-e8"));
-        should_be.insert(Move::from_algebra("Qe7-a7"));
-        should_be.insert(Move::from_algebra("Qe7-b7"));
-        should_be.insert(Move::from_algebra("Qe7-c7"));
-        should_be.insert(Move::from_algebra("Qe7-d7"));
-        should_be.insert(Move::from_algebra("Qe7-f7"));
-        should_be.insert(Move::from_algebra("Qe7-g7"));
-        should_be.insert(Move::from_algebra("Qe7-h7"));
-        should_be.insert(Move::from_algebra("Qe7-f6"));
-        should_be.insert(Move::from_algebra("Qe7-g5"));
-        should_be.insert(Move::from_algebra("Qe7-d6"));
-        should_be.insert(Move::from_algebra("Qe7-c5"));
-        should_be.insert(Move::from_algebra("Qe7-b4"));
-        should_be.insert(Move::from_algebra("h4-h5"));
+        should_be.insert(Move::from_algebra("Qe7xd8").unwrap());
+        should_be.insert(Move::from_algebra("Qe7xf8").unwrap());
+        should_be.insert(Move::from_algebra("Qe7xe5").unwrap());
+        should_be.insert(Move::from_algebra("Qe7xa3").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-e6").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-e8").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-a7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-b7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-c7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-d7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-f7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-g7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-h7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-f6").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-g5").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-d6").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-c5").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-b4").unwrap());
+        should_be.insert(Move::from_algebra("h4-h5").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1425,35 +1492,35 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Qe7-b4")),
-            Board::from_fen("3n1q3/8/8/4p3/1Q5P/p7/8/8 b - - 1 1")
+            b.make_move(&Move::from_algebra("Qe7-b4").unwrap()).unwrap(),
+            Board::from_fen("3n1q3/8/8/4p3/1Q5P/p7/8/8 b - - 1 1").unwrap()
         );
     }
 //}}}
     #[test] // black_queen//{{{
     fn black_queen() {
-        let b = Board::from_fen("3N1Q3/4q3/8/4P3/7p/P7/8/8 b - - 0 1");
+        let b = Board::from_fen("3N1Q3/4q3/8/4P3/7p/P7/8/8 b - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Qe7xd8"));
-        should_be.insert(Move::from_algebra("Qe7xf8"));
-        should_be.insert(Move::from_algebra("Qe7xe5"));
-        should_be.insert(Move::from_algebra("Qe7xa3"));
-        should_be.insert(Move::from_algebra("Qe7-e6"));
-        should_be.insert(Move::from_algebra("Qe7-e8"));
-        should_be.insert(Move::from_algebra("Qe7-a7"));
-        should_be.insert(Move::from_algebra("Qe7-b7"));
-        should_be.insert(Move::from_algebra("Qe7-c7"));
-        should_be.insert(Move::from_algebra("Qe7-d7"));
-        should_be.insert(Move::from_algebra("Qe7-f7"));
-        should_be.insert(Move::from_algebra("Qe7-g7"));
-        should_be.insert(Move::from_algebra("Qe7-h7"));
-        should_be.insert(Move::from_algebra("Qe7-f6"));
-        should_be.insert(Move::from_algebra("Qe7-g5"));
-        should_be.insert(Move::from_algebra("Qe7-d6"));
-        should_be.insert(Move::from_algebra("Qe7-c5"));
-        should_be.insert(Move::from_algebra("Qe7-b4"));
-        should_be.insert(Move::from_algebra("h4-h3"));
+        should_be.insert(Move::from_algebra("Qe7xd8").unwrap());
+        should_be.insert(Move::from_algebra("Qe7xf8").unwrap());
+        should_be.insert(Move::from_algebra("Qe7xe5").unwrap());
+        should_be.insert(Move::from_algebra("Qe7xa3").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-e6").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-e8").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-a7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-b7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-c7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-d7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-f7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-g7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-h7").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-f6").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-g5").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-d6").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-c5").unwrap());
+        should_be.insert(Move::from_algebra("Qe7-b4").unwrap());
+        should_be.insert(Move::from_algebra("h4-h3").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1461,27 +1528,27 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Qe7-b4")),
-            Board::from_fen("3N1Q3/8/8/4P3/1q5p/P7/8/8 w - - 1 2")
+            b.make_move(&Move::from_algebra("Qe7-b4").unwrap()).unwrap(),
+            Board::from_fen("3N1Q3/8/8/4P3/1q5p/P7/8/8 w - - 1 2").unwrap()
         );
     }
 //}}}
     #[test] // white_rook//{{{
     fn white_rook() {
-        let b = Board::from_fen("3n1q3/4R3/8/4p3/7P/p7/8/8 w - - 0 1");
+        let b = Board::from_fen("3n1q3/4R3/8/4p3/7P/p7/8/8 w - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Re7xe5"));
-        should_be.insert(Move::from_algebra("Re7-e6"));
-        should_be.insert(Move::from_algebra("Re7-e8"));
-        should_be.insert(Move::from_algebra("Re7-a7"));
-        should_be.insert(Move::from_algebra("Re7-b7"));
-        should_be.insert(Move::from_algebra("Re7-c7"));
-        should_be.insert(Move::from_algebra("Re7-d7"));
-        should_be.insert(Move::from_algebra("Re7-f7"));
-        should_be.insert(Move::from_algebra("Re7-g7"));
-        should_be.insert(Move::from_algebra("Re7-h7"));
-        should_be.insert(Move::from_algebra("h4-h5"));
+        should_be.insert(Move::from_algebra("Re7xe5").unwrap());
+        should_be.insert(Move::from_algebra("Re7-e6").unwrap());
+        should_be.insert(Move::from_algebra("Re7-e8").unwrap());
+        should_be.insert(Move::from_algebra("Re7-a7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-b7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-c7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-d7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-f7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-g7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-h7").unwrap());
+        should_be.insert(Move::from_algebra("h4-h5").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1489,27 +1556,27 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Re7-f7")),
-            Board::from_fen("3n1q3/5R2/8/4p3/7P/p7/8/8 b - - 1 1")
+            b.make_move(&Move::from_algebra("Re7-f7").unwrap()).unwrap(),
+            Board::from_fen("3n1q3/5R2/8/4p3/7P/p7/8/8 b - - 1 1").unwrap()
         );
     }
 //}}}
     #[test] // black_rook//{{{
     fn black_rook() {
-        let b = Board::from_fen("3N1Q3/4r3/8/4P3/7p/P7/8/8 b - - 0 1");
+        let b = Board::from_fen("3N1Q3/4r3/8/4P3/7p/P7/8/8 b - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Re7xe5"));
-        should_be.insert(Move::from_algebra("Re7-e6"));
-        should_be.insert(Move::from_algebra("Re7-e8"));
-        should_be.insert(Move::from_algebra("Re7-a7"));
-        should_be.insert(Move::from_algebra("Re7-b7"));
-        should_be.insert(Move::from_algebra("Re7-c7"));
-        should_be.insert(Move::from_algebra("Re7-d7"));
-        should_be.insert(Move::from_algebra("Re7-f7"));
-        should_be.insert(Move::from_algebra("Re7-g7"));
-        should_be.insert(Move::from_algebra("Re7-h7"));
-        should_be.insert(Move::from_algebra("h4-h3"));
+        should_be.insert(Move::from_algebra("Re7xe5").unwrap());
+        should_be.insert(Move::from_algebra("Re7-e6").unwrap());
+        should_be.insert(Move::from_algebra("Re7-e8").unwrap());
+        should_be.insert(Move::from_algebra("Re7-a7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-b7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-c7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-d7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-f7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-g7").unwrap());
+        should_be.insert(Move::from_algebra("Re7-h7").unwrap());
+        should_be.insert(Move::from_algebra("h4-h3").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1517,25 +1584,25 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Re7-f7")),
-            Board::from_fen("3N1Q3/5r2/8/4P3/7p/P7/8/8 w - - 1 2")
+            b.make_move(&Move::from_algebra("Re7-f7").unwrap()).unwrap(),
+            Board::from_fen("3N1Q3/5r2/8/4P3/7p/P7/8/8 w - - 1 2").unwrap()
         );
     }
 //}}}
     #[test] // white_bishop//{{{
     fn white_bishop() {
-        let b = Board::from_fen("3n1q3/4B3/8/4p3/7P/p7/8/8 w - - 0 1");
+        let b = Board::from_fen("3n1q3/4B3/8/4p3/7P/p7/8/8 w - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Be7xd8"));
-        should_be.insert(Move::from_algebra("Be7xf8"));
-        should_be.insert(Move::from_algebra("Be7xa3"));
-        should_be.insert(Move::from_algebra("Be7-f6"));
-        should_be.insert(Move::from_algebra("Be7-g5"));
-        should_be.insert(Move::from_algebra("Be7-d6"));
-        should_be.insert(Move::from_algebra("Be7-c5"));
-        should_be.insert(Move::from_algebra("Be7-b4"));
-        should_be.insert(Move::from_algebra("h4-h5"));
+        should_be.insert(Move::from_algebra("Be7xd8").unwrap());
+        should_be.insert(Move::from_algebra("Be7xf8").unwrap());
+        should_be.insert(Move::from_algebra("Be7xa3").unwrap());
+        should_be.insert(Move::from_algebra("Be7-f6").unwrap());
+        should_be.insert(Move::from_algebra("Be7-g5").unwrap());
+        should_be.insert(Move::from_algebra("Be7-d6").unwrap());
+        should_be.insert(Move::from_algebra("Be7-c5").unwrap());
+        should_be.insert(Move::from_algebra("Be7-b4").unwrap());
+        should_be.insert(Move::from_algebra("h4-h5").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1543,25 +1610,25 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Be7xd8")),
-            Board::from_fen("3B1q3/8/8/4p3/7P/p7/8/8 b - - 0 1")
+            b.make_move(&Move::from_algebra("Be7xd8").unwrap()).unwrap(),
+            Board::from_fen("3B1q3/8/8/4p3/7P/p7/8/8 b - - 0 1").unwrap()
         );
     }
 //}}}
     #[test] // black_bishop//{{{
     fn black_bishop() {
-        let b = Board::from_fen("3N1Q3/4b3/8/4P3/7p/P7/8/8 b - - 0 1");
+        let b = Board::from_fen("3N1Q3/4b3/8/4P3/7p/P7/8/8 b - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Be7xd8"));
-        should_be.insert(Move::from_algebra("Be7xf8"));
-        should_be.insert(Move::from_algebra("Be7xa3"));
-        should_be.insert(Move::from_algebra("Be7-f6"));
-        should_be.insert(Move::from_algebra("Be7-g5"));
-        should_be.insert(Move::from_algebra("Be7-d6"));
-        should_be.insert(Move::from_algebra("Be7-c5"));
-        should_be.insert(Move::from_algebra("Be7-b4"));
-        should_be.insert(Move::from_algebra("h4-h3"));
+        should_be.insert(Move::from_algebra("Be7xd8").unwrap());
+        should_be.insert(Move::from_algebra("Be7xf8").unwrap());
+        should_be.insert(Move::from_algebra("Be7xa3").unwrap());
+        should_be.insert(Move::from_algebra("Be7-f6").unwrap());
+        should_be.insert(Move::from_algebra("Be7-g5").unwrap());
+        should_be.insert(Move::from_algebra("Be7-d6").unwrap());
+        should_be.insert(Move::from_algebra("Be7-c5").unwrap());
+        should_be.insert(Move::from_algebra("Be7-b4").unwrap());
+        should_be.insert(Move::from_algebra("h4-h3").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1569,26 +1636,26 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Be7xd8")),
-            Board::from_fen("3b1Q3/8/8/4P3/7p/P7/8/8 w - - 0 2")
+            b.make_move(&Move::from_algebra("Be7xd8").unwrap()).unwrap(),
+            Board::from_fen("3b1Q3/8/8/4P3/7p/P7/8/8 w - - 0 2").unwrap()
         );
     }
 //}}}
     #[test] // white_knight//{{{
     fn white_knight() {
-        let b = Board::from_fen("N7/2p5/8/8/4N3/2p5/8/8 w - - 0 1");
+        let b = Board::from_fen("N7/2p5/8/8/4N3/2p5/8/8 w - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Na8xc7"));
-        should_be.insert(Move::from_algebra("Na8-b6"));
-        should_be.insert(Move::from_algebra("Ne4-c5"));
-        should_be.insert(Move::from_algebra("Ne4xc3"));
-        should_be.insert(Move::from_algebra("Ne4-d6"));
-        should_be.insert(Move::from_algebra("Ne4-d2"));
-        should_be.insert(Move::from_algebra("Ne4-f6"));
-        should_be.insert(Move::from_algebra("Ne4-f2"));
-        should_be.insert(Move::from_algebra("Ne4-g5"));
-        should_be.insert(Move::from_algebra("Ne4-g3"));
+        should_be.insert(Move::from_algebra("Na8xc7").unwrap());
+        should_be.insert(Move::from_algebra("Na8-b6").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-c5").unwrap());
+        should_be.insert(Move::from_algebra("Ne4xc3").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-d6").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-d2").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-f6").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-f2").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-g5").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-g3").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1596,26 +1663,26 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Ne4-c5")),
-            Board::from_fen("N7/2p5/8/2N5/8/2p5/8/8 b - - 1 1")
+            b.make_move(&Move::from_algebra("Ne4-c5").unwrap()).unwrap(),
+            Board::from_fen("N7/2p5/8/2N5/8/2p5/8/8 b - - 1 1").unwrap()
         );
     }
 //}}}
     #[test] // black_knight//{{{
     fn black_knight() {
-        let b = Board::from_fen("n7/2P5/8/8/4n3/2P5/8/8 b - - 0 1");
+        let b = Board::from_fen("n7/2P5/8/8/4n3/2P5/8/8 b - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Na8xc7"));
-        should_be.insert(Move::from_algebra("Na8-b6"));
-        should_be.insert(Move::from_algebra("Ne4-c5"));
-        should_be.insert(Move::from_algebra("Ne4xc3"));
-        should_be.insert(Move::from_algebra("Ne4-d6"));
-        should_be.insert(Move::from_algebra("Ne4-d2"));
-        should_be.insert(Move::from_algebra("Ne4-f6"));
-        should_be.insert(Move::from_algebra("Ne4-f2"));
-        should_be.insert(Move::from_algebra("Ne4-g5"));
-        should_be.insert(Move::from_algebra("Ne4-g3"));
+        should_be.insert(Move::from_algebra("Na8xc7").unwrap());
+        should_be.insert(Move::from_algebra("Na8-b6").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-c5").unwrap());
+        should_be.insert(Move::from_algebra("Ne4xc3").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-d6").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-d2").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-f6").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-f2").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-g5").unwrap());
+        should_be.insert(Move::from_algebra("Ne4-g3").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1623,21 +1690,21 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Ne4-c5")),
-            Board::from_fen("n7/2P5/8/2n5/8/2P5/8/8 w - - 1 2")
+            b.make_move(&Move::from_algebra("Ne4-c5").unwrap()).unwrap(),
+            Board::from_fen("n7/2P5/8/2n5/8/2P5/8/8 w - - 1 2").unwrap()
         );
     }
 //}}}
     #[test] // white_king//{{{
     fn white_king() {
-        let b = Board::from_fen("n/1p6/2KP5/1p6/8/8/8/8 w - - 0 1");
+        let b = Board::from_fen("n/1p6/2KP5/1p6/8/8/8/8 w - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Kc6xb7"));
-        should_be.insert(Move::from_algebra("Kc6-d7"));
-        should_be.insert(Move::from_algebra("Kc6-d5"));
-        should_be.insert(Move::from_algebra("Kc6xb5"));
-        should_be.insert(Move::from_algebra("Kc6-c5"));
+        should_be.insert(Move::from_algebra("Kc6xb7").unwrap());
+        should_be.insert(Move::from_algebra("Kc6-d7").unwrap());
+        should_be.insert(Move::from_algebra("Kc6-d5").unwrap());
+        should_be.insert(Move::from_algebra("Kc6xb5").unwrap());
+        should_be.insert(Move::from_algebra("Kc6-c5").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1645,21 +1712,21 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Kc6xb7")),
-            Board::from_fen("n/1K6/3P5/1p6/8/8/8/8 b - - 0 1")
+            b.make_move(&Move::from_algebra("Kc6xb7").unwrap()).unwrap(),
+            Board::from_fen("n/1K6/3P5/1p6/8/8/8/8 b - - 0 1").unwrap()
         );
     }
 //}}}
     #[test] // black_king//{{{
     fn black_king() {
-        let b = Board::from_fen("N/1P6/2kp5/1P6/8/8/8/8 b - - 0 1");
+        let b = Board::from_fen("N/1P6/2kp5/1P6/8/8/8/8 b - - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Kc6xb7"));
-        should_be.insert(Move::from_algebra("Kc6-d7"));
-        should_be.insert(Move::from_algebra("Kc6-d5"));
-        should_be.insert(Move::from_algebra("Kc6xb5"));
-        should_be.insert(Move::from_algebra("Kc6-c5"));
+        should_be.insert(Move::from_algebra("Kc6xb7").unwrap());
+        should_be.insert(Move::from_algebra("Kc6-d7").unwrap());
+        should_be.insert(Move::from_algebra("Kc6-d5").unwrap());
+        should_be.insert(Move::from_algebra("Kc6xb5").unwrap());
+        should_be.insert(Move::from_algebra("Kc6-c5").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1667,18 +1734,18 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(res, should_be);
         assert_eq!(
-            b.make_move(&Move::from_algebra("Kc6xb7")),
-            Board::from_fen("N/1k6/3p5/1P6/8/8/8/8 w - - 0 2")
+            b.make_move(&Move::from_algebra("Kc6xb7").unwrap()).unwrap(),
+            Board::from_fen("N/1k6/3p5/1P6/8/8/8/8 w - - 0 2").unwrap()
         );
     }
     //}}}
     #[test] // white_castling//{{{
     fn white_castling() {
-        let b = Board::from_fen("8/8/8/8/8/8/8/R3K2R w KQ - 0 1");
+        let b = Board::from_fen("8/8/8/8/8/8/8/R3K2R w KQ - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("O-O"));
-        should_be.insert(Move::from_algebra("O-O-O"));
+        should_be.insert(Move::from_algebra("O-O").unwrap());
+        should_be.insert(Move::from_algebra("O-O-O").unwrap());
         println!("should_be=");
         for mov in should_be.iter() {
             println!("  {}", mov);
@@ -1686,31 +1753,31 @@ mod tests {
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert!(should_be.is_subset(&res));
         assert_eq!(
-            b.make_move(&Move::from_algebra("O-O")),
-            Board::from_fen("8/8/8/8/8/8/8/R31RK1 b - - 1 1")
+            b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap(),
+            Board::from_fen("8/8/8/8/8/8/8/R31RK1 b - - 1 1").unwrap()
         );
         assert_eq!(
-            b.make_move(&Move::from_algebra("O-O-O")),
-            Board::from_fen("8/8/8/8/8/8/8/2KR3R b - - 1 1")
+            b.make_move(&Move::from_algebra("O-O-O").unwrap()).unwrap(),
+            Board::from_fen("8/8/8/8/8/8/8/2KR3R b - - 1 1").unwrap()
         );
     }
 //}}}
     #[test] // black_castling//{{{
     fn black_castling() {
-        let b = Board::from_fen("r3k2r/8/8/8/8/8/8/8 b kq - 0 1");
+        let b = Board::from_fen("r3k2r/8/8/8/8/8/8/8 b kq - 0 1").unwrap();
         println!("\n{}", b);
         let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("O-O"));
-        should_be.insert(Move::from_algebra("O-O-O"));
+        should_be.insert(Move::from_algebra("O-O").unwrap());
+        should_be.insert(Move::from_algebra("O-O-O").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert!(should_be.is_subset(&res));
         assert_eq!(
-            b.make_move(&Move::from_algebra("O-O")),
-            Board::from_fen("r31rk1/8/8/8/8/8/8/8 w - - 1 2")
+            b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap(),
+            Board::from_fen("r31rk1/8/8/8/8/8/8/8 w - - 1 2").unwrap()
         );
         assert_eq!(
-            b.make_move(&Move::from_algebra("O-O-O")),
-            Board::from_fen("2kr3r/8/8/8/8/8/8/8 w - - 1 2")
+            b.make_move(&Move::from_algebra("O-O-O").unwrap()).unwrap(),
+            Board::from_fen("2kr3r/8/8/8/8/8/8/8 w - - 1 2").unwrap()
         );
     }
 //}}}
@@ -1718,18 +1785,18 @@ mod tests {
     #[should_panic]
     fn white_castling_through_threat() {
         // shouldn't be able to castle through threatened square!
-        let b = Board::from_fen("8/8/8/8/8/5q3/8/4K2R w KQ - 0 1");
+        let b = Board::from_fen("8/8/8/8/8/5q3/8/4K2R w KQ - 0 1").unwrap();
         println!("\n{}",b);
-        b.make_move(&Move::from_algebra("O-O"));
+        b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap();
     }
 //}}}
     #[test] // black_castling_through_threat {{{
     #[should_panic]
     fn black_castling_through_threat() {
         // shouldn't be able to castle through threatened square!
-        let b = Board::from_fen("4k2r/8/5Q3/8/8/8/8/8 b kq - 0 1");
+        let b = Board::from_fen("4k2r/8/5Q3/8/8/8/8/8 b kq - 0 1").unwrap();
         println!("\n{}",b);
-        b.make_move(&Move::from_algebra("O-O"));
+        b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap();
     }
 //}}}
 }

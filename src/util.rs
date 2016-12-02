@@ -1,3 +1,34 @@
+#[derive(Debug)]
+pub enum ChessError {
+    ParseError(String),
+    IllegalMove(String),
+    BadBoardState(String),
+}
+
+#[macro_export]
+macro_rules! parse_error(
+    ($($arg:tt)*) => { {
+        let s = format!($($arg)*);
+        return Err(ChessError::ParseError(s));
+    } }
+);
+
+#[macro_export]
+macro_rules! illegal_move_error(
+    ($($arg:tt)*) => { {
+        let s = format!($($arg)*);
+        return Err(ChessError::IllegalMove(s));
+    } }
+);
+
+#[macro_export]
+macro_rules! board_state_error(
+    ($($arg:tt)*) => { {
+        let s = format!($($arg)*);
+        return Err(ChessError::BadBoardState(s));
+    } }
+);
+
 #[macro_export]
 macro_rules! debug(
     ($($arg:tt)*) => { {
