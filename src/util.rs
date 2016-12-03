@@ -5,6 +5,16 @@ pub enum ChessError {
     BadBoardState(String),
 }
 
+impl ChessError {
+    pub fn msg(&self) -> String {
+        match *self {
+            ChessError::ParseError(ref s) => s.clone(),
+            ChessError::IllegalMove(ref s) => s.clone(),
+            ChessError::BadBoardState(ref s) => s.clone(),
+        }
+    }
+}
+
 #[macro_export]
 macro_rules! parse_error(
     ($($arg:tt)*) => { {
@@ -55,7 +65,10 @@ macro_rules! send(
     } }
 );
 
-pub fn to_algebra(coord: usize) -> String {
+pub fn to_algebra(coord: usize) -> Result<String, ChessError> {
+    if coord >= 64 {
+        parse_error!("[to_algebra] coordinate out of bounds! got \"{}\"", coord);
+    }
     let x = coord as u8 % 8;
     let y = (coord as u8 - x) / 8;
     let rank = ('1' as u8 + (7 - y)) as char;
@@ -63,14 +76,18 @@ pub fn to_algebra(coord: usize) -> String {
     let mut s = String::with_capacity(2);
     s.push(file);
     s.push(rank);
-    s
+    Ok(s)
 }
 
-pub fn from_algebra(s: &str) -> usize {
+pub fn from_algebra(s: &str) -> Result<usize, ChessError> {
     let cs: Vec<char> = s.chars().collect();
+    if (cs[1] as usize) < '1' as usize || cs[1] as usize > '8' as usize ||
+       (cs[0] as usize) < 'a' as usize || cs[0] as usize > 'h' as usize {
+        parse_error!("[from_algebra] parse error: \"{}\"", s);
+    }
     let row = 7 - (cs[1] as usize - '1' as usize);
     let col = cs[0] as usize - 'a' as usize;
-    row * 8 + col
+    Ok(row * 8 + col)
 }
 
 #[cfg(test)]
@@ -80,17 +97,17 @@ mod tests {
 
     #[test]
     fn coordinates_to_algebra() {
-        assert_eq!(from_algebra("e4"), 4*8 + 4);
-        assert_eq!(from_algebra("h8"), 0*8 + 7);
-        assert_eq!(from_algebra("a8"), 0*8 + 0);
-        assert_eq!(from_algebra("a1"), 7*8 + 0);
-        assert_eq!(from_algebra("f3"), 5*8 + 5);
-        assert_eq!(from_algebra("c2"), 6*8 + 2);
-        assert_eq!(from_algebra("c7"), 1*8 + 2);
+        assert_eq!(from_algebra("e4").unwrap(), 4*8 + 4);
+        assert_eq!(from_algebra("h8").unwrap(), 0*8 + 7);
+        assert_eq!(from_algebra("a8").unwrap(), 0*8 + 0);
+        assert_eq!(from_algebra("a1").unwrap(), 7*8 + 0);
+        assert_eq!(from_algebra("f3").unwrap(), 5*8 + 5);
+        assert_eq!(from_algebra("c2").unwrap(), 6*8 + 2);
+        assert_eq!(from_algebra("c7").unwrap(), 1*8 + 2);
         let mut rng = rand::thread_rng();
         for _ in 0..16 {
             let x = rng.gen::<usize>() % 64;
-            assert_eq!(x, from_algebra(&to_algebra(x)));
+            assert_eq!(x, from_algebra(&to_algebra(x).unwrap()).unwrap());
         }
     }
 }

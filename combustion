@@ -1,4 +1,7 @@
 #!/bin/bash
 
-echo >> log.txt
-exec cargo run -q 2>>log.txt
+exec cargo run -q
+
+# echo >> log.txt
+# export RUST_BACKTRACE=1
+# exec cargo run -q 2>>log.txt

@@ -2,13 +2,13 @@ use util::{from_algebra, to_algebra, ChessError};
 use std::fmt;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-enum Color {
+pub enum Color {
     White,
     Black,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug, Eq, Hash)]
-enum PieceType {
+pub enum PieceType {
     Pawn,
     Bishop,
     Knight,
@@ -18,7 +18,7 @@ enum PieceType {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct Piece {
+pub struct Piece {
     kind: PieceType,
     color: Color,
 }
@@ -27,17 +27,17 @@ struct Piece {
 // const BLACK_KING: Piece = Piece { kind: PieceType::King, color: Color::White };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-enum Castle {
+pub enum Castle {
     Kingside,
     Queenside,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-struct Pos(usize);
+pub struct Pos(usize);
 
 pub struct Board {
     board: [Option<Piece>; 64],
-    color_to_move: Color,
+    pub color_to_move: Color,
     castle_rights: [bool; 4], // [ white K, white Q, black k, black q ]
     en_passant_target: Option<Pos>,
     halfmove_clock: usize,
@@ -45,7 +45,7 @@ pub struct Board {
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
-struct Move {
+pub struct Move {
     kind: PieceType,
     from: Pos,
     to: Pos,
@@ -65,6 +65,7 @@ impl Color {
 }
 
 impl Move {
+    #[allow(dead_code)]
     fn from_algebra(s: &str) -> Result<Move, ChessError> {
         if s == "O-O" {
             Ok( Move {
@@ -117,8 +118,8 @@ impl Move {
             }
             Ok(Move {
                 kind: kind,
-                from: Pos(from_algebra(&from)),
-                to: Pos(from_algebra(&to)),
+                from: Pos(from_algebra(&from)?),
+                to:   Pos(from_algebra(&to)?),
                 takes: cs[2] == 'x',
                 en_passant: ep,
                 promotion: promotion,
@@ -127,7 +128,7 @@ impl Move {
         }
     }
 
-    fn to_xboard_format(&self, c: Color) -> String {
+    pub fn to_xboard_format(&self, c: Color) -> String {
         match self.castle {
             Some(Castle::Kingside)  =>
                 match c {
@@ -153,33 +154,38 @@ impl Move {
         )
     }
 
-    fn from_xboard_format(&self, s: &str, b: Board) -> Result<Move, ChessError> {
-        let from = Pos::from_algebra(&s[0..2]);
-        let to   = Pos::from_algebra(&s[2..4]);
-        let p = b.piece(from).unwrap();
+    pub fn from_xboard_format(s: &str, b: &Board) -> Result<Move, ChessError> {
+        let from = Pos::from_algebra(&s[0..2])?;
+        let to   = Pos::from_algebra(&s[2..4])?;
+        let p = match b.piece(from) {
+            Some(p) => p,
+            None => illegal_move_error!("[from_xboard_format] {}: no piece at {}!", s, from),
+        };
         let q = b.piece(to);
-        let extras = s[4..].to_string();
         let mut prom = None;
         let mut ep = false;
-        if extras == "e.p." {
-            ep = true;
-        } else if extras == "q" {
-            prom = Some(PieceType::Queen);
-        } else if extras == "r" {
-            prom = Some(PieceType::Rook);
-        } else if extras == "n" {
-            prom = Some(PieceType::Knight);
-        } else if extras == "b" {
-            prom = Some(PieceType::Bishop);
-        } else {
-            parse_error!("[Move::from_xboard_format] unknown suffix: \"{}\"", extras);
+        if s.len() > 4 {
+            let extras = s[4..].to_string();
+            if extras == "e.p." {
+                ep = true;
+            } else if extras == "q" {
+                prom = Some(PieceType::Queen);
+            } else if extras == "r" {
+                prom = Some(PieceType::Rook);
+            } else if extras == "n" {
+                prom = Some(PieceType::Knight);
+            } else if extras == "b" {
+                prom = Some(PieceType::Bishop);
+            } else {
+                parse_error!("[Move::from_xboard_format] unknown suffix: \"{}\"", extras);
+            }
         }
         let mut castle = None;
-        if from == Pos::from_algebra("e1") && to == Pos::from_algebra("g1") ||
-           from == Pos::from_algebra("e8") && to == Pos::from_algebra("g8") {
+        if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("g1")? ||
+           from == Pos::from_algebra("e8")? && to == Pos::from_algebra("g8")? {
             castle = Some(Castle::Kingside);
-        } else if from == Pos::from_algebra("e1") && to == Pos::from_algebra("c1") ||
-                  from == Pos::from_algebra("e8") && to == Pos::from_algebra("c8") {
+        } else if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("c1")? ||
+                  from == Pos::from_algebra("e8")? && to == Pos::from_algebra("c8")? {
             castle = Some(Castle::Queenside);
         }
         let m = Move {
@@ -215,12 +221,14 @@ impl Board {
         self.board[loc.0]
     }
 
+    // ignores bad formating of the string!
     fn get_piece_at(&mut self, s: &str) -> Option<Piece> {
-        self.board[Pos::from_algebra(s).0].take()
+        self.board[Pos::from_algebra(s).unwrap().0].take()
     }
 
+    // ignores bad formating of the string!
     fn put_piece_at(&mut self, p: Piece, s: &str) {
-        let pos = Pos::from_algebra(s);
+        let pos = Pos::from_algebra(s).unwrap();
         assert!(self.piece(pos).is_none());
         self.board[pos.0] = Some(p);
     }
@@ -446,7 +454,7 @@ impl Board {
     }
 //}}}
 
-    fn make_move(&self, mv: &Move) -> Result<Board, ChessError> {
+    pub fn make_move(&self, mv: &Move) -> Result<Board, ChessError> {
         let col = self.color_to_move;
         let mut b = Board { color_to_move: col.other(), .. *self };
         if col == Color::Black {
@@ -465,10 +473,13 @@ impl Board {
                     }
                     match col {
                         Color::White => {
-                            if self.threatens(col.other(), Pos::from_algebra("e1")) ||
-                               self.threatens(col.other(), Pos::from_algebra("f1")) ||
-                               self.threatens(col.other(), Pos::from_algebra("g1")) {
+                            if self.threatens(col.other(), Pos::from_algebra("e1")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("f1")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("g1")?) {
                                 illegal_move_error!("[make_move] {}: white cannot castle kingside through check!", mv);
+                            }
+                            if self.occupied(Pos::from_algebra("f1")?) || self.occupied(Pos::from_algebra("g1")?) {
+                                illegal_move_error!("[make_move] {}: white cannot castle kingside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e1") {
                                 Some(p@Piece{kind: PieceType::King, color: Color::White}) => p,
@@ -484,10 +495,13 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(col.other(), Pos::from_algebra("e8")) ||
-                               self.threatens(col.other(), Pos::from_algebra("f8")) ||
-                               self.threatens(col.other(), Pos::from_algebra("g8")) {
+                            if self.threatens(col.other(), Pos::from_algebra("e8")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("f8")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("g8")?) {
                                 illegal_move_error!("[make_move] {} black cannot castle kingside through check!", mv);
+                            }
+                            if self.occupied(Pos::from_algebra("f8")?) || self.occupied(Pos::from_algebra("g8")?) {
+                                illegal_move_error!("[make_move] {}: black cannot castle kingside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e8") {
                                 Some(p@Piece{kind: PieceType::King, color: Color::Black}) => p,
@@ -510,10 +524,15 @@ impl Board {
                     }
                     match col {
                         Color::White => {
-                            if self.threatens(col.other(), Pos::from_algebra("e1")) ||
-                               self.threatens(col.other(), Pos::from_algebra("d1")) ||
-                               self.threatens(col.other(), Pos::from_algebra("c1")) {
+                            if self.threatens(col.other(), Pos::from_algebra("e1")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("d1")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("c1")?) {
                                 illegal_move_error!("[make_move] {}: white cannot castle queenside through check!", mv);
+                            }
+                            if self.occupied(Pos::from_algebra("b1")?) ||
+                                self.occupied(Pos::from_algebra("c1")?) ||
+                                self.occupied(Pos::from_algebra("d1")?) {
+                                illegal_move_error!("[make_move] {}: white cannot castle queenside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e1") {
                                 Some(p@Piece{kind: PieceType::King, color: Color::White}) => p,
@@ -529,10 +548,15 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(col.other(), Pos::from_algebra("e8")) ||
-                               self.threatens(col.other(), Pos::from_algebra("d8")) ||
-                               self.threatens(col.other(), Pos::from_algebra("c8")) {
+                            if self.threatens(col.other(), Pos::from_algebra("e8")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("d8")?) ||
+                               self.threatens(col.other(), Pos::from_algebra("c8")?) {
                                 illegal_move_error!("[make_move] {}: black cannot castle queenside through check!", mv);
+                            }
+                            if self.occupied(Pos::from_algebra("b8")?) ||
+                               self.occupied(Pos::from_algebra("c8")?) ||
+                               self.occupied(Pos::from_algebra("d8")?) {
+                                illegal_move_error!("[make_move] {}: black cannot castle queenside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e8") {
                                 Some(p@Piece{kind: PieceType::King, color: Color::Black}) => p,
@@ -620,13 +644,17 @@ impl Board {
                 b.board[mv.to.0] = Some(p);
             }
         }
+        let kings = b.get_pieces_by_type_and_color(PieceType::King, col);
+        if kings.len() == 1 && b.threatens(col.other(), kings[0].0) {
+            illegal_move_error!("moving into check");
+        }
         Ok(b)
     }
 
     ////////////////////////////////////////////////////////////////////////////////
     // moves generation
 
-    fn legal_moves(&self) -> Vec<Move> {
+    pub fn legal_moves(&self) -> Vec<Move> {
         let c = self.color_to_move;
         let mut moves = Vec::new();
         for (loc, p) in self.get_pieces_by_color(c) {
@@ -640,10 +668,7 @@ impl Board {
             }
         }
         // check that none of the moves put the king in check
-        moves.into_iter().filter(|m| {
-            let kings = self.make_move(m).unwrap().get_pieces_by_type_and_color(PieceType::King, c);
-            kings.len() == 0 || !self.threatens(c.other(), kings[0].0)
-        }).collect()
+        moves.into_iter().filter(|m| self.make_move(m).is_ok()).collect()
     }
 
     fn pawn_moves(&self, loc: Pos, c: Color) -> Vec<Move> {//{{{
@@ -1135,7 +1160,7 @@ impl Board {
         // parse en-passant string
         match tokens[3] {
             "-" => {}
-            s   => b.en_passant_target = Some(Pos::from_algebra(s)),
+            s   => b.en_passant_target = Some(Pos::from_algebra(s)?),
         }
 
         b.halfmove_clock = match tokens[4].parse() {
@@ -1158,8 +1183,8 @@ impl Pos {
         Pos(rank * 8 + file)
     }
 
-    fn from_algebra(s: &str) -> Self {
-        Pos(from_algebra(s))
+    fn from_algebra(s: &str) -> Result<Self, ChessError> {
+        Ok(Pos(from_algebra(s)?))
     }
 
     fn file(&self) -> usize {
@@ -1299,7 +1324,7 @@ impl fmt::Display for Piece {//{{{
 //}}}
 impl fmt::Display for Pos {//{{{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", to_algebra(self.0))
+        write!(f, "{}", to_algebra(self.0).unwrap())
     }
 }
 //}}}
@@ -1396,7 +1421,7 @@ mod tests {
         should_be.insert(Move::from_algebra("b5xa6e.p.").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
-        assert!(b.threatens(Color::White, Pos::from_algebra("a6")));
+        assert!(b.threatens(Color::White, Pos::from_algebra("a6").unwrap()));
         assert_eq!(
             b.make_move(&Move::from_algebra("b5xa6e.p.").unwrap()).unwrap(),
             Board::from_fen("8/8/P7/8/8/8/8/8 b - - 0 1").unwrap()
@@ -1412,7 +1437,7 @@ mod tests {
         should_be.insert(Move::from_algebra("a4xb3e.p.").unwrap());
         let res: HashSet<Move> = b.legal_moves().into_iter().collect();
         assert_eq!(should_be, res);
-        assert!(b.threatens(Color::Black, Pos::from_algebra("b3")));
+        assert!(b.threatens(Color::Black, Pos::from_algebra("b3").unwrap()));
         assert_eq!(
             b.make_move(&Move::from_algebra("a4xb3e.p.").unwrap()).unwrap(),
             Board::from_fen("8/8/8/8/8/1p6/8/8 w - - 0 2").unwrap()
@@ -1760,6 +1785,14 @@ mod tests {
             b.make_move(&Move::from_algebra("O-O-O").unwrap()).unwrap(),
             Board::from_fen("8/8/8/8/8/8/8/2KR3R b - - 1 1").unwrap()
         );
+    }
+//}}}
+    #[test] // white_castling2 {{{
+    fn white_castling2() {
+        let b = Board::from_fen("8/8/8/8/8/8/8/RN2K2R w KQ - 0 1").unwrap();
+        println!("\n{}", b);
+        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        assert!(!res.contains(&Move::from_algebra("O-O-O").unwrap()));
     }
 //}}}
     #[test] // black_castling//{{{
