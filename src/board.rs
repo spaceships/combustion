@@ -56,7 +56,7 @@ pub struct Move {
 }
 
 impl Color {
-    fn other(&self) -> Color {
+    pub fn other(&self) -> Color {
         match *self {
             Color::White => Color::Black,
             Color::Black => Color::White,

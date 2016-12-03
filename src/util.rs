@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug)]
 pub enum ChessError {
     ParseError(String),
@@ -12,6 +14,12 @@ impl ChessError {
             ChessError::IllegalMove(ref s) => s.clone(),
             ChessError::BadBoardState(ref s) => s.clone(),
         }
+    }
+}
+
+impl fmt::Display for ChessError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.msg())
     }
 }
 
