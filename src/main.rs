@@ -243,6 +243,7 @@ fn main() {
                 send!("move {}", mv.to_xboard_format(b.color_to_move));
                 b = b.make_move(&mv).unwrap();
                 history.push(mv);
+                debug!("made move {}", mv);
                 debug!("current board:\n{}", b);
             } else {
                 send!("resign");

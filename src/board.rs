@@ -294,7 +294,7 @@ impl Board {
                         Color::Black => {
                             if new.southeast(1).map_or(false, |ray|
                                 ray == old || self.is_en_passant_target(ray) && ray.north(1).unwrap() == old) ||
-                               new.southeast(1).map_or(false, |ray|
+                               new.southwest(1).map_or(false, |ray|
                                 ray == old || self.is_en_passant_target(ray) && ray.north(1).unwrap() == old)
                             {
                                 return true;
@@ -309,7 +309,7 @@ impl Board {
                        new.mv( 1,-1).map_or(false, |ray| ray == old) ||
                        new.mv( 0, 1).map_or(false, |ray| ray == old) ||
                        new.mv( 0,-1).map_or(false, |ray| ray == old) ||
-                       new.mv(-1, 0).map_or(false, |ray| ray == old) ||
+                       new.mv(-1, 1).map_or(false, |ray| ray == old) ||
                        new.mv(-1, 0).map_or(false, |ray| ray == old) ||
                        new.mv(-1,-1).map_or(false, |ray| ray == old)
                     {
@@ -455,9 +455,9 @@ impl Board {
 //}}}
 
     pub fn make_move(&self, mv: &Move) -> Result<Board, ChessError> {
-        let col = self.color_to_move;
-        let mut b = Board { color_to_move: col.other(), .. *self };
-        if col == Color::Black {
+        let color = self.color_to_move;
+        let mut b = Board { color_to_move: color.other(), .. *self };
+        if color == Color::Black {
             b.move_number += 1;
         }
         if mv.takes || mv.kind == PieceType::Pawn {
@@ -468,14 +468,14 @@ impl Board {
         if let Some(c) = mv.castle {
             match c {
                 Castle::Kingside => {
-                    if !self.castle_kingside_rights(col) {
+                    if !self.castle_kingside_rights(color) {
                         illegal_move_error!("[make_move] {}: kingside castle without rights!", mv);
                     }
-                    match col {
+                    match color {
                         Color::White => {
-                            if self.threatens(col.other(), Pos::from_algebra("e1")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("f1")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("g1")?) {
+                            if self.threatens(color.other(), Pos::from_algebra("e1")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("f1")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("g1")?) {
                                 illegal_move_error!("[make_move] {}: white cannot castle kingside through check!", mv);
                             }
                             if self.occupied(Pos::from_algebra("f1")?) || self.occupied(Pos::from_algebra("g1")?) {
@@ -495,9 +495,9 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(col.other(), Pos::from_algebra("e8")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("f8")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("g8")?) {
+                            if self.threatens(color.other(), Pos::from_algebra("e8")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("f8")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("g8")?) {
                                 illegal_move_error!("[make_move] {} black cannot castle kingside through check!", mv);
                             }
                             if self.occupied(Pos::from_algebra("f8")?) || self.occupied(Pos::from_algebra("g8")?) {
@@ -519,14 +519,14 @@ impl Board {
                     }
                 }
                 Castle::Queenside => {
-                    if !self.castle_queenside_rights(col) {
+                    if !self.castle_queenside_rights(color) {
                         illegal_move_error!("[make_move] {}: queenside castle without rights!", mv);
                     }
-                    match col {
+                    match color {
                         Color::White => {
-                            if self.threatens(col.other(), Pos::from_algebra("e1")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("d1")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("c1")?) {
+                            if self.threatens(color.other(), Pos::from_algebra("e1")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("d1")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("c1")?) {
                                 illegal_move_error!("[make_move] {}: white cannot castle queenside through check!", mv);
                             }
                             if self.occupied(Pos::from_algebra("b1")?) ||
@@ -548,9 +548,9 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(col.other(), Pos::from_algebra("e8")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("d8")?) ||
-                               self.threatens(col.other(), Pos::from_algebra("c8")?) {
+                            if self.threatens(color.other(), Pos::from_algebra("e8")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("d8")?) ||
+                               self.threatens(color.other(), Pos::from_algebra("c8")?) {
                                 illegal_move_error!("[make_move] {}: black cannot castle queenside through check!", mv);
                             }
                             if self.occupied(Pos::from_algebra("b8")?) ||
@@ -589,11 +589,11 @@ impl Board {
                 None => illegal_move_error!("[make_move] {}: no piece at {}", mv, mv.from),
             };
             // check that we are moving a white piece if it is white's turn
-            if p.color != col {
-                illegal_move_error!("[make_move] {}: tried to move {}'s piece but it is {}'s turn!", mv, p.color, col);
+            if p.color != color {
+                illegal_move_error!("[make_move] {}: tried to move {}'s piece but it is {}'s turn!", mv, p.color, color);
             }
             // find the position of the piece we are capturing
-            let target_piece_at = match col {
+            let target_piece_at = match color {
                 Color::White => mv.to.south(1).unwrap(),
                 Color::Black => mv.to.north(1).unwrap(),
             };
@@ -609,7 +609,7 @@ impl Board {
                 illegal_move_error!("[make_move] {}: there was no piece at {}!", mv, target_piece_at);
             }
             // check that we're taking a piece of the opposite color!
-            if q.map_or(false, |q| q.color == col) {
+            if q.map_or(false, |q| q.color == color) {
                 illegal_move_error!("[make_move] {}: taking a piece of the same color!", mv);
             }
             // place the capturing piece
@@ -620,8 +620,33 @@ impl Board {
             // grab the moving/capturing piece
             let p = b.board[mv.from.0].take().expect(&format!("[make_move] {}: no piece at {}", mv, mv.from));
             // check that it is the right color
-            if p.color != col {
-                illegal_move_error!("[make_move] {}: tried to move {}'s piece but it is {}'s turn!", mv, p.color, col);
+            if p.color != color {
+                illegal_move_error!("[make_move] {}: tried to move {}'s piece but it is {}'s turn!", mv, p.color, color);
+            }
+            // set the castling rights for kings and rooks
+            if p.kind == PieceType::King {
+                match color {
+                    Color::White => {
+                        b.castle_rights[0] = false;
+                        b.castle_rights[1] = false;
+                    }
+                    Color::Black => {
+                        b.castle_rights[2] = false;
+                        b.castle_rights[3] = false;
+                    }
+                }
+            }
+            if p.kind == PieceType::Rook {
+                match color {
+                    Color::White => {
+                        if mv.from == Pos::from_algebra("h1").unwrap() { b.castle_rights[0] = false }
+                        if mv.from == Pos::from_algebra("a1").unwrap() { b.castle_rights[1] = false }
+                    }
+                    Color::Black => {
+                        if mv.from == Pos::from_algebra("h8").unwrap() { b.castle_rights[2] = false }
+                        if mv.from == Pos::from_algebra("a8").unwrap() { b.castle_rights[3] = false }
+                    }
+                }
             }
             // grab the potentially nonexistant target piece
             let q = b.board[mv.to.0].take();
@@ -630,8 +655,8 @@ impl Board {
                 illegal_move_error!("[make_move] {}: taking a nonexistent piece!", mv);
             }
             // check that we're taking a piece of the opposite color
-            if q.map_or(false, |q| q.color == col) {
-                illegal_move_error!("[make_move] {}: {} cannot take its own pieces!", mv, col);
+            if q.map_or(false, |q| q.color == color) {
+                illegal_move_error!("[make_move] {}: {} cannot take its own pieces!", mv, color);
             }
             // possibly promote, but only for pawns
             if let Some(prom) = mv.promotion {
@@ -644,8 +669,8 @@ impl Board {
                 b.board[mv.to.0] = Some(p);
             }
         }
-        let kings = b.get_pieces_by_type_and_color(PieceType::King, col);
-        if kings.len() == 1 && b.threatens(col.other(), kings[0].0) {
+        let kings = b.get_pieces_by_type_and_color(PieceType::King, color);
+        if kings.len() == 1 && b.threatens(color.other(), kings[0].0) {
             illegal_move_error!("moving into check");
         }
         Ok(b)
@@ -1074,7 +1099,6 @@ impl Board {
             castle: None,
         };
 
-        // threatened by the other color
         if self.castle_kingside_rights(c) &&
             !self.occupied(old.east(1).expect("[Board::king_moves] confusing castling rights!")) &&
             !self.occupied(old.east(2).expect("[Board::king_moves] confusing castling rights!")) &&
