@@ -1,5 +1,6 @@
 use util::{from_algebra, to_algebra, ChessError};
 use std::fmt;
+use std::cmp::{min, max};
 use rand::{self, Rng};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -1257,21 +1258,9 @@ impl Board {
         for mv in moves {
             let score;
             if depth == 0 {
-                score = self.score(my_color);
+                score = self.make_move(&mv)?.score(my_color);
             } else {
-                let response = self.make_move(&mv)?.best_move(my_color, depth - 1);
-                match response {
-                    Err(ChessError::Checkmate) => {
-                        if my_color == self.color_to_move {
-                            score = isize::min_value();
-                        } else {
-                            score = isize::max_value();
-                        }
-                    }
-                    Err(ChessError::Stalemate) => score = 0,
-                    Ok((_, response_score))    => score = response_score / 2,
-                    Err(e) => return Err(e),
-                }
+                score = self.make_move(&mv)?.alpha_beta(my_color, depth, isize::min_value(), isize::max_value())?;
             }
             if score > best_score || (score == best_score && rng.gen())
             {
@@ -1280,6 +1269,50 @@ impl Board {
             }
         }
         Ok((best_move.unwrap(), best_score))
+    }
+
+    fn alpha_beta(&self, my_color: Color, depth: usize, alpha_in: isize, beta_in: isize)
+        -> Result<isize, ChessError>
+    {
+        let mut alpha = alpha_in;
+        let mut beta  = beta_in;
+        if depth == 0 {
+            return Ok(self.score(my_color));
+        }
+        if self.color_to_move == my_color {
+            // maximizing player
+            let mut v = isize::min_value();
+            for mv in self.legal_moves()? {
+                let score = match self.make_move(&mv)?.alpha_beta(my_color, depth - 1, alpha, beta) {
+                    Err(ChessError::Checkmate) => isize::max_value(),
+                    Err(ChessError::Stalemate) => 0,
+                    Ok(score) => score,
+                    Err(e) => return Err(e),
+                };
+                v     = max(v, score);
+                alpha = max(alpha, v);
+                if beta <= alpha {
+                    break;
+                }
+            }
+            Ok(v)
+        } else {
+            let mut v = isize::max_value();
+            for mv in self.legal_moves()? {
+                let score = match self.make_move(&mv)?.alpha_beta(my_color, depth - 1, alpha, beta) {
+                    Err(ChessError::Checkmate) => isize::min_value(),
+                    Err(ChessError::Stalemate) => 0,
+                    Ok(score) => score,
+                    Err(e) => return Err(e),
+                };
+                v = min(v, score);
+                beta = min(beta, v);
+                if beta <= alpha {
+                    break;
+                }
+            }
+            Ok(v)
+        }
     }
 
     pub fn random_move(&self) -> Result<(Move, isize), ChessError> {

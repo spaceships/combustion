@@ -261,7 +261,7 @@ fn main() {
             if engine_random_choice {
                 mv_result = b.random_move();
             } else {
-                mv_result = b.best_move(my_color, 2);
+                mv_result = b.best_move(my_color, 4);
             }
             match mv_result {
                 Ok((mv,score)) => {
