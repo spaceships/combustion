@@ -180,14 +180,25 @@ impl Move {
                 parse_error!("[Move::from_xboard_format] unknown suffix: \"{}\"", extras);
             }
         }
-        let mut castle = None;
-        if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("g1")? ||
-           from == Pos::from_algebra("e8")? && to == Pos::from_algebra("g8")? {
-            castle = Some(Castle::Kingside);
-        } else if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("c1")? ||
-                  from == Pos::from_algebra("e8")? && to == Pos::from_algebra("c8")? {
-            castle = Some(Castle::Queenside);
-        }
+        let castle = if p.kind == PieceType::King {
+            if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("g1")? ||
+               from == Pos::from_algebra("e8")? && to == Pos::from_algebra("g8")?
+            {
+                Some(Castle::Kingside)
+            }
+
+            else if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("c1")? ||
+                    from == Pos::from_algebra("e8")? && to == Pos::from_algebra("c8")?
+            {
+                Some(Castle::Queenside)
+            }
+
+            else
+            {
+                None
+            }
+        } else { None };
+
         let m = Move {
             kind: p.kind,
             from: from,
