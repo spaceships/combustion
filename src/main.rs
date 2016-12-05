@@ -1,14 +1,25 @@
 extern crate rand;
 extern crate regex;
+extern crate getopts;
 
 #[macro_use]
 pub mod util;
 pub mod board;
 
 use board::{Board, Move, Color};
-use std::io::Write;
+use util::ChessError;
+
+use getopts::Options;
 use regex::Regex;
-use rand::Rng;
+use std::env;
+use std::io::Write;
+use std::process::exit;
+
+fn print_usage(program: &str, opts: Options) {
+    let brief = format!("Usage: {} [OPTIONS]", program);
+    print!("{}", opts.usage(&brief));
+    exit(0);
+}
 
 fn ignore() {
     debug!("ignoring message");
@@ -25,10 +36,19 @@ fn next_input_line() -> String {
 
 #[allow(unused_variables, unused_assignments)]
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    let mut options = Options::new();
+    options.optflag("h", "help", "Print this help menu.");
+    options.optflag("r", "random", "Choose moves randomly.");
+    let opts = options.parse(&args[1..]).unwrap();
+    if opts.opt_present("h") {
+        print_usage(&args[0], options);
+    }
+
+    let engine_random_choice = opts.opt_present("r");
+
     // main loop- recieving and sending messages to xboard
     debug!("combustion started!");
-
-    let mut rng = rand::thread_rng();
 
     // precompile regexes
     let re_level    = Regex::new(r"^level (\d+) (\d+)(:\d+)? (\d+)$").unwrap();
@@ -164,6 +184,7 @@ fn main() {
 
         // ^result ([012/]+-[012/]+|\*) (\{.*\})$
         else if re_result.is_match(&s) {
+            // TODO: implement this-- allows aborting
             ignore()
         }
 
@@ -222,7 +243,7 @@ fn main() {
                                 // stop opponent's clock
                                 // start my clock
                             }
-                            debug!("current board:\n{}", new_board);
+                            // debug!("current board:\n{}", new_board);
                             history.push(mv);
                             b = new_board;
                         }
@@ -236,17 +257,30 @@ fn main() {
         }
 
         if !force_mode && b.color_to_move == my_color {
-            let ms = b.legal_moves();
-            if ms.len() > 0 {
-                let i = rng.gen::<usize>() % ms.len();
-                let mv = ms[i];
-                send!("move {}", mv.to_xboard_format(b.color_to_move));
-                b = b.make_move(&mv).unwrap();
-                history.push(mv);
-                debug!("made move {}", mv);
-                debug!("current board:\n{}", b);
+            let mv_result;
+            if engine_random_choice {
+                mv_result = b.random_move();
             } else {
-                send!("resign");
+                mv_result = b.best_move(my_color, 2);
+            }
+            match mv_result {
+                Ok((mv,score)) => {
+                    send!("move {}", mv.to_xboard_format(b.color_to_move));
+                    b = b.make_move(&mv).unwrap();
+                    history.push(mv);
+                    debug!("made move {} with score {}", mv, score);
+                    debug!("current board:\n{}", b);
+                }
+                Err(ChessError::Stalemate) => {
+                    send!("1/2-1/2 {{Stalemate}}");
+                }
+                Err(ChessError::Checkmate) => {
+                    match my_color {
+                        Color::White => send!("0-1 {{Checkmate}}"),
+                        Color::Black => send!("1-0 {{Checkmate}}"),
+                    }
+                }
+                Err(e) => send!("Error ({}): {}", e, s),
             }
         }
     }

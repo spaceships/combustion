@@ -1,5 +1,6 @@
 use util::{from_algebra, to_algebra, ChessError};
 use std::fmt;
+use rand::{self, Rng};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Color {
@@ -224,6 +225,86 @@ impl Board {
         }
     }
 
+    pub fn from_fen(fen: &str) -> Result<Board, ChessError> {//{{{
+        let mut b = Board::new();
+        let mut i = 0;
+        let mut j = 0;
+        let tokens: Vec<&str> = fen.split(" ").collect();
+
+        let check = |i,j| {
+            if i*8+j >= 64 {
+                Err(ChessError::ParseError(format!("[from_fen] index out of bounds i={} j={}!", i, j)))
+            } else {
+                Ok(())
+            }
+        };
+
+        // parse board
+        for c in tokens[0].chars() {
+            match c {
+                ' ' => break,
+                '/' => { i += 1; j = 0; }
+
+                n @ '1' ... '8' => {
+                    j += n.to_string().parse().expect("couldn't read number!");
+                }
+
+                'P' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
+                'p' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::Black }); j += 1; }
+                'B' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::White }); j += 1; }
+                'b' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::Black }); j += 1; }
+                'N' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::White }); j += 1; }
+                'n' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::Black }); j += 1; }
+                'R' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::White }); j += 1; }
+                'r' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::Black }); j += 1; }
+                'Q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::White }); j += 1; }
+                'q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::Black }); j += 1; }
+                'K' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::White }); j += 1; }
+                'k' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::Black }); j += 1; }
+
+                c => parse_error!("[from_fen] unexpected \"{}\"", c),
+            }
+        }
+
+        // parse turn
+        match tokens[1] {
+            "w"|"W" => b.color_to_move = Color::White,
+            "b"|"B" => b.color_to_move = Color::Black,
+            c => parse_error!("[from_fen] unexpected \"{}\"", c),
+        }
+
+        // parse castling rights
+        for c in tokens[2].chars() {
+            match c {
+                'K' => b.castle_rights[0] = true,
+                'Q' => b.castle_rights[1] = true,
+                'k' => b.castle_rights[2] = true,
+                'q' => b.castle_rights[3] = true,
+                '-' => {}
+                c => parse_error!("[from_fen] unexpected \"{}\"", c),
+            }
+        }
+
+        // parse en-passant string
+        match tokens[3] {
+            "-" => {}
+            s   => b.en_passant_target = Some(Pos::from_algebra(s)?),
+        }
+
+        b.halfmove_clock = match tokens[4].parse() {
+            Ok(c) => c,
+            Err(_) => parse_error!("[from_fen] couldn't decode half move clock!"),
+        };
+
+        b.move_number = match tokens[5].parse() {
+            Ok(c) => c,
+            Err(_) => parse_error!("[from_fen] couldn't decode move number!"),
+        };
+
+        Ok(b)
+    }
+    //}}}
+
     pub fn initial() -> Self {
         Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap()
     }
@@ -256,9 +337,9 @@ impl Board {
         res
     }
 
-    fn get_pieces_by_type_and_color(&self, k: PieceType, c: Color) -> Vec<(Pos, Piece)> {
+    fn get_pieces_by_type_and_color(&self, k: PieceType, c: Color) -> Vec<Pos> {
         let q = Piece { kind: k, color: c };
-        self.pieces(&|p| p == q)
+        self.pieces(&|p| p == q).into_iter().map(|(pos,_)| pos).collect()
     }
 
     fn get_pieces_by_color(&self, c: Color) -> Vec<(Pos, Piece)> {
@@ -464,8 +545,7 @@ impl Board {
         false
     }
 //}}}
-
-    pub fn make_move(&self, mv: &Move) -> Result<Board, ChessError> {
+    pub fn make_move(&self, mv: &Move) -> Result<Board, ChessError> {//{{{
         let color = self.color_to_move;
         let mut b = Board { color_to_move: color.other(), .. *self };
         if color == Color::Black {
@@ -681,16 +761,14 @@ impl Board {
             }
         }
         let kings = b.get_pieces_by_type_and_color(PieceType::King, color);
-        if kings.len() == 1 && b.threatens(color.other(), kings[0].0) {
+        if kings.len() == 1 && b.threatens(color.other(), kings[0]) {
             illegal_move_error!("moving into check");
         }
         Ok(b)
     }
+//}}}
 
-    ////////////////////////////////////////////////////////////////////////////////
-    // moves generation
-
-    pub fn legal_moves(&self) -> Vec<Move> {
+    pub fn legal_moves(&self) -> Result<Vec<Move>, ChessError> {//{{{
         let c = self.color_to_move;
         let mut moves = Vec::new();
         for (loc, p) in self.get_pieces_by_color(c) {
@@ -703,10 +781,21 @@ impl Board {
                 PieceType::King   => moves.extend(self.king_moves(loc, c)),
             }
         }
-        // check that none of the moves put the king in check
-        moves.into_iter().filter(|m| self.make_move(m).is_ok()).collect()
+        // filter moves where the king is in check
+        let moves: Vec<Move> = moves.into_iter().filter(|m| self.make_move(m).is_ok()).collect();
+        // check for checkmate, stalemate, no moves (when there are no kings, haha)
+        let kings = self.get_pieces_by_type_and_color(PieceType::King, c);
+        if moves.len() == 0 {
+            if kings.len() == 1 && self.threatens(c.other(), kings[0]) {
+                Err(ChessError::Checkmate)
+            } else {
+                Err(ChessError::Stalemate)
+            }
+        } else {
+            Ok(moves)
+        }
     }
-
+//}}}
     fn pawn_moves(&self, loc: Pos, c: Color) -> Vec<Move> {//{{{
         match c {
             Color::White => self.white_pawn_moves(loc),
@@ -1132,85 +1221,73 @@ impl Board {
     }
 //}}}
 
-    pub fn from_fen(fen: &str) -> Result<Board, ChessError> {//{{{
-        let mut b = Board::new();
-        let mut i = 0;
-        let mut j = 0;
-        let tokens: Vec<&str> = fen.split(" ").collect();
-
-        let check = |i,j| {
-            if i*8+j >= 64 {
-                Err(ChessError::ParseError(format!("[from_fen] index out of bounds i={} j={}!", i, j)))
-            } else {
-                Ok(())
-            }
-        };
-
-        // parse board
-        for c in tokens[0].chars() {
-            match c {
-                ' ' => break,
-                '/' => { i += 1; j = 0; }
-
-                n @ '1' ... '8' => {
-                    j += n.to_string().parse().expect("couldn't read number!");
-                }
-
-                'P' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
-                'p' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::Black }); j += 1; }
-                'B' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::White }); j += 1; }
-                'b' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::Black }); j += 1; }
-                'N' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::White }); j += 1; }
-                'n' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::Black }); j += 1; }
-                'R' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::White }); j += 1; }
-                'r' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::Black }); j += 1; }
-                'Q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::White }); j += 1; }
-                'q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::Black }); j += 1; }
-                'K' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::White }); j += 1; }
-                'k' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::Black }); j += 1; }
-
-                c => parse_error!("[from_fen] unexpected \"{}\"", c),
+    // get score of board in centipawns
+    pub fn score(&self, color: Color) -> isize {
+        let mut score = 0;
+        // let color = self.color_to_move;
+        for (_, p) in self.get_pieces_by_color(color) {
+            match p.kind {
+                PieceType::Pawn   => score += 100,
+                PieceType::Knight => score += 300,
+                PieceType::Bishop => score += 300,
+                PieceType::Rook   => score += 500,
+                PieceType::Queen  => score += 900,
+                PieceType::King   => score += 400,
             }
         }
-
-        // parse turn
-        match tokens[1] {
-            "w"|"W" => b.color_to_move = Color::White,
-            "b"|"B" => b.color_to_move = Color::Black,
-            c => parse_error!("[from_fen] unexpected \"{}\"", c),
-        }
-
-        // parse castling rights
-        for c in tokens[2].chars() {
-            match c {
-                'K' => b.castle_rights[0] = true,
-                'Q' => b.castle_rights[1] = true,
-                'k' => b.castle_rights[2] = true,
-                'q' => b.castle_rights[3] = true,
-                '-' => {}
-                c => parse_error!("[from_fen] unexpected \"{}\"", c),
+        for (_, p) in self.get_pieces_by_color(color.other()) {
+            match p.kind {
+                PieceType::Pawn   => score -= 100,
+                PieceType::Knight => score -= 300,
+                PieceType::Bishop => score -= 300,
+                PieceType::Rook   => score -= 500,
+                PieceType::Queen  => score -= 900,
+                PieceType::King   => score -= 400,
             }
         }
-
-        // parse en-passant string
-        match tokens[3] {
-            "-" => {}
-            s   => b.en_passant_target = Some(Pos::from_algebra(s)?),
-        }
-
-        b.halfmove_clock = match tokens[4].parse() {
-            Ok(c) => c,
-            Err(_) => parse_error!("[from_fen] couldn't decode half move clock!"),
-        };
-
-        b.move_number = match tokens[5].parse() {
-            Ok(c) => c,
-            Err(_) => parse_error!("[from_fen] couldn't decode move number!"),
-        };
-
-        Ok(b)
+        score
     }
-    //}}}
+
+    pub fn best_move(&self, my_color: Color, depth: usize) -> Result<(Move, isize), ChessError> {
+        // find the move with the weakest response
+        let moves = self.legal_moves()?;
+        let mut rng = rand::thread_rng();
+        let mut best_score = isize::min_value();
+        let mut best_move = None;
+        for mv in moves {
+            let score;
+            if depth == 0 {
+                score = self.score(my_color);
+            } else {
+                let response = self.make_move(&mv)?.best_move(my_color, depth - 1);
+                match response {
+                    Err(ChessError::Checkmate) => {
+                        if my_color == self.color_to_move {
+                            score = isize::min_value();
+                        } else {
+                            score = isize::max_value();
+                        }
+                    }
+                    Err(ChessError::Stalemate) => score = 0,
+                    Ok((_, response_score))    => score = response_score / 2,
+                    Err(e) => return Err(e),
+                }
+            }
+            if score > best_score || (score == best_score && rng.gen())
+            {
+                best_move = Some(mv);
+                best_score = score;
+            }
+        }
+        Ok((best_move.unwrap(), best_score))
+    }
+
+    pub fn random_move(&self) -> Result<(Move, isize), ChessError> {
+        let mut rng = rand::thread_rng();
+        let ms = self.legal_moves()?;
+        let i = rng.gen::<usize>() % ms.len();
+        Ok((ms[i], 0))
+    }
 }
 
 impl Pos {
@@ -1407,7 +1484,7 @@ mod tests {
     fn initial_moves() {
         let b = Board::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
         println!("\n{}", b);
-        assert_eq!(b.legal_moves().len(), 20);
+        assert_eq!(b.legal_moves().unwrap().len(), 20);
     }
 //}}}
     #[test] // white_pawn//{{{
@@ -1421,7 +1498,7 @@ mod tests {
         should_be.insert(Move::from_algebra("b2xc3").unwrap());
         should_be.insert(Move::from_algebra("d2xc3").unwrap());
         should_be.insert(Move::from_algebra("d2-d3").unwrap());
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("b2-b3").unwrap()).unwrap(),
@@ -1439,7 +1516,7 @@ mod tests {
         should_be.insert(Move::from_algebra("c7xb6").unwrap());
         should_be.insert(Move::from_algebra("c7xd6").unwrap());
         should_be.insert(Move::from_algebra("h7-h6").unwrap());
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("c7-c5").unwrap()).unwrap(),
@@ -1454,7 +1531,7 @@ mod tests {
         let mut should_be = HashSet::new();
         should_be.insert(Move::from_algebra("b5-b6").unwrap());
         should_be.insert(Move::from_algebra("b5xa6e.p.").unwrap());
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert!(b.threatens(Color::White, Pos::from_algebra("a6").unwrap()));
         assert_eq!(
@@ -1470,7 +1547,7 @@ mod tests {
         let mut should_be = HashSet::new();
         should_be.insert(Move::from_algebra("a4-a3").unwrap());
         should_be.insert(Move::from_algebra("a4xb3e.p.").unwrap());
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert!(b.threatens(Color::Black, Pos::from_algebra("b3").unwrap()));
         assert_eq!(
@@ -1492,7 +1569,7 @@ mod tests {
         should_be.insert(Move::from_algebra("e7xd8=N").unwrap());
         should_be.insert(Move::from_algebra("e7xd8=R").unwrap());
         should_be.insert(Move::from_algebra("e7xd8=B").unwrap());
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("e7-e8=N").unwrap()).unwrap(),
@@ -1513,7 +1590,7 @@ mod tests {
         should_be.insert(Move::from_algebra("d2xe1=N").unwrap());
         should_be.insert(Move::from_algebra("d2xe1=R").unwrap());
         should_be.insert(Move::from_algebra("d2xe1=B").unwrap());
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("d2xe1=B").unwrap()).unwrap(),
@@ -1549,7 +1626,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Qe7-b4").unwrap()).unwrap(),
@@ -1585,7 +1662,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Qe7-b4").unwrap()).unwrap(),
@@ -1613,7 +1690,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Re7-f7").unwrap()).unwrap(),
@@ -1641,7 +1718,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Re7-f7").unwrap()).unwrap(),
@@ -1667,7 +1744,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Be7xd8").unwrap()).unwrap(),
@@ -1693,7 +1770,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Be7xd8").unwrap()).unwrap(),
@@ -1720,7 +1797,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Ne4-c5").unwrap()).unwrap(),
@@ -1747,7 +1824,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Ne4-c5").unwrap()).unwrap(),
@@ -1769,7 +1846,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(should_be, res);
         assert_eq!(
             b.make_move(&Move::from_algebra("Kc6xb7").unwrap()).unwrap(),
@@ -1791,7 +1868,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert_eq!(res, should_be);
         assert_eq!(
             b.make_move(&Move::from_algebra("Kc6xb7").unwrap()).unwrap(),
@@ -1810,7 +1887,7 @@ mod tests {
         for mov in should_be.iter() {
             println!("  {}", mov);
         }
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert!(should_be.is_subset(&res));
         assert_eq!(
             b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap(),
@@ -1826,7 +1903,7 @@ mod tests {
     fn white_castling2() {
         let b = Board::from_fen("8/8/8/8/8/8/8/RN2K2R w KQ - 0 1").unwrap();
         println!("\n{}", b);
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert!(!res.contains(&Move::from_algebra("O-O-O").unwrap()));
     }
 //}}}
@@ -1837,7 +1914,7 @@ mod tests {
         let mut should_be = HashSet::new();
         should_be.insert(Move::from_algebra("O-O").unwrap());
         should_be.insert(Move::from_algebra("O-O-O").unwrap());
-        let res: HashSet<Move> = b.legal_moves().into_iter().collect();
+        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
         assert!(should_be.is_subset(&res));
         assert_eq!(
             b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap(),
@@ -1867,4 +1944,11 @@ mod tests {
         b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap();
     }
 //}}}
+
+    #[test] // pawn score {{{
+    fn pawn_score_black() {
+        let b = Board::from_fen("p7/8/8/p7/8/8/8/8 b - - 0 1").unwrap();
+        assert_eq!(b.score(Color::Black), 200);
+    }
+    // }}}
 }

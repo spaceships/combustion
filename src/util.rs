@@ -5,6 +5,8 @@ pub enum ChessError {
     ParseError(String),
     IllegalMove(String),
     BadBoardState(String),
+    Stalemate,
+    Checkmate,
 }
 
 impl ChessError {
@@ -13,6 +15,8 @@ impl ChessError {
             ChessError::ParseError(ref s) => s.clone(),
             ChessError::IllegalMove(ref s) => s.clone(),
             ChessError::BadBoardState(ref s) => s.clone(),
+            ChessError::Stalemate => "stalemate".to_string(),
+            ChessError::Checkmate => "checkmate".to_string(),
         }
     }
 }
