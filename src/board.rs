@@ -1233,7 +1233,7 @@ impl Board {
                 PieceType::Bishop => score += 300,
                 PieceType::Rook   => score += 500,
                 PieceType::Queen  => score += 900,
-                PieceType::King   => score += 400,
+                PieceType::King   => score += isize::max_value()/2,
             }
         }
         for (_, p) in self.get_pieces_by_color(color.other()) {
@@ -1243,7 +1243,7 @@ impl Board {
                 PieceType::Bishop => score -= 300,
                 PieceType::Rook   => score -= 500,
                 PieceType::Queen  => score -= 900,
-                PieceType::King   => score -= 400,
+                PieceType::King   => score -= isize::max_value()/2,
             }
         }
         score
