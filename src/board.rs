@@ -3,6 +3,18 @@ use std::fmt;
 use std::cmp::{min, max};
 use rand::{self, Rng};
 
+macro_rules! mv {
+    ( $str: expr ) => {{
+        Move::from_algebra($str).unwrap()
+    }}
+}
+
+macro_rules! pos {
+    ( $str: expr ) => {{
+        Pos::from_algebra($str).unwrap()
+    }}
+}
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Color {
     White,
@@ -69,6 +81,7 @@ impl Color {
 impl Move {
     #[allow(dead_code)]
     fn from_algebra(s: &str) -> Result<Move, ChessError> {
+        println!("{}", s);
         if s == "O-O" {
             Ok( Move {
                 kind: PieceType::King,
@@ -183,14 +196,14 @@ impl Move {
             }
         }
         let castle = if p.kind == PieceType::King {
-            if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("g1")? ||
-               from == Pos::from_algebra("e8")? && to == Pos::from_algebra("g8")?
+            if from == pos!("e1") && to == pos!("g1") ||
+               from == pos!("e8") && to == pos!("g8")
             {
                 Some(Castle::Kingside)
             }
 
-            else if from == Pos::from_algebra("e1")? && to == Pos::from_algebra("c1")? ||
-                    from == Pos::from_algebra("e8")? && to == Pos::from_algebra("c8")?
+            else if from == pos!("e1") && to == pos!("c1") ||
+                    from == pos!("e8") && to == pos!("c8")
             {
                 Some(Castle::Queenside)
             }
@@ -565,12 +578,12 @@ impl Board {
                     }
                     match color {
                         Color::White => {
-                            if self.threatens(color.other(), Pos::from_algebra("e1")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("f1")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("g1")?) {
+                            if self.threatens(color.other(), pos!("e1")) ||
+                               self.threatens(color.other(), pos!("f1")) ||
+                               self.threatens(color.other(), pos!("g1")) {
                                 illegal_move_error!("[make_move] {}: white cannot castle kingside through check!", mv);
                             }
-                            if self.occupied(Pos::from_algebra("f1")?) || self.occupied(Pos::from_algebra("g1")?) {
+                            if self.occupied(pos!("f1")) || self.occupied(pos!("g1")) {
                                 illegal_move_error!("[make_move] {}: white cannot castle kingside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e1") {
@@ -587,12 +600,12 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(color.other(), Pos::from_algebra("e8")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("f8")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("g8")?) {
+                            if self.threatens(color.other(), pos!("e8")) ||
+                               self.threatens(color.other(), pos!("f8")) ||
+                               self.threatens(color.other(), pos!("g8")) {
                                 illegal_move_error!("[make_move] {} black cannot castle kingside through check!", mv);
                             }
-                            if self.occupied(Pos::from_algebra("f8")?) || self.occupied(Pos::from_algebra("g8")?) {
+                            if self.occupied(pos!("f8")) || self.occupied(pos!("g8")) {
                                 illegal_move_error!("[make_move] {}: black cannot castle kingside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e8") {
@@ -616,14 +629,14 @@ impl Board {
                     }
                     match color {
                         Color::White => {
-                            if self.threatens(color.other(), Pos::from_algebra("e1")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("d1")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("c1")?) {
+                            if self.threatens(color.other(), pos!("e1")) ||
+                               self.threatens(color.other(), pos!("d1")) ||
+                               self.threatens(color.other(), pos!("c1")) {
                                 illegal_move_error!("[make_move] {}: white cannot castle queenside through check!", mv);
                             }
-                            if self.occupied(Pos::from_algebra("b1")?) ||
-                                self.occupied(Pos::from_algebra("c1")?) ||
-                                self.occupied(Pos::from_algebra("d1")?) {
+                            if self.occupied(pos!("b1")) ||
+                               self.occupied(pos!("c1")) ||
+                               self.occupied(pos!("d1")) {
                                 illegal_move_error!("[make_move] {}: white cannot castle queenside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e1") {
@@ -640,14 +653,14 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(color.other(), Pos::from_algebra("e8")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("d8")?) ||
-                               self.threatens(color.other(), Pos::from_algebra("c8")?) {
+                            if self.threatens(color.other(), pos!("e8")) ||
+                               self.threatens(color.other(), pos!("d8")) ||
+                               self.threatens(color.other(), pos!("c8")) {
                                 illegal_move_error!("[make_move] {}: black cannot castle queenside through check!", mv);
                             }
-                            if self.occupied(Pos::from_algebra("b8")?) ||
-                               self.occupied(Pos::from_algebra("c8")?) ||
-                               self.occupied(Pos::from_algebra("d8")?) {
+                            if self.occupied(pos!("b8")) ||
+                               self.occupied(pos!("c8")) ||
+                               self.occupied(pos!("d8")) {
                                 illegal_move_error!("[make_move] {}: black cannot castle queenside: spaces occupied!", mv);
                             }
                             let k = match b.get_piece_at("e8") {
@@ -731,12 +744,12 @@ impl Board {
             if p.kind == PieceType::Rook {
                 match color {
                     Color::White => {
-                        if mv.from == Pos::from_algebra("h1").unwrap() { b.castle_rights[0] = false }
-                        if mv.from == Pos::from_algebra("a1").unwrap() { b.castle_rights[1] = false }
+                        if mv.from == pos!("h1") { b.castle_rights[0] = false }
+                        if mv.from == pos!("a1") { b.castle_rights[1] = false }
                     }
                     Color::Black => {
-                        if mv.from == Pos::from_algebra("h8").unwrap() { b.castle_rights[2] = false }
-                        if mv.from == Pos::from_algebra("a8").unwrap() { b.castle_rights[3] = false }
+                        if mv.from == pos!("h8") { b.castle_rights[2] = false }
+                        if mv.from == pos!("a8") { b.castle_rights[3] = false }
                     }
                 }
             }
@@ -1233,7 +1246,7 @@ impl Board {
                 PieceType::Bishop => score += 300,
                 PieceType::Rook   => score += 500,
                 PieceType::Queen  => score += 900,
-                PieceType::King   => score += isize::max_value()/2,
+                PieceType::King   => score += 400,
             }
         }
         for (_, p) in self.get_pieces_by_color(color.other()) {
@@ -1243,13 +1256,13 @@ impl Board {
                 PieceType::Bishop => score -= 300,
                 PieceType::Rook   => score -= 500,
                 PieceType::Queen  => score -= 900,
-                PieceType::King   => score -= isize::max_value()/2,
+                PieceType::King   => score -= 400,
             }
         }
         score
     }
 
-    pub fn best_move(&self, my_color: Color, depth: usize) -> Result<(Move, isize), ChessError> {
+    pub fn best_move(&self, depth: usize) -> Result<(Move, isize), ChessError> {
         // find the move with the weakest response
         let moves = self.legal_moves()?;
         let mut rng = rand::thread_rng();
@@ -1258,9 +1271,9 @@ impl Board {
         for mv in moves {
             let score;
             if depth == 0 {
-                score = self.make_move(&mv)?.score(my_color);
+                score = self.make_move(&mv)?.score(self.color_to_move);
             } else {
-                score = self.make_move(&mv)?.alpha_beta(my_color, depth, isize::min_value(), isize::max_value())?;
+                score = self.make_move(&mv)?.alpha_beta(self.color_to_move, depth, isize::min_value(), isize::max_value())?;
             }
             if score > best_score || (score == best_score && rng.gen())
             {
@@ -1476,8 +1489,8 @@ impl fmt::Display for Pos {//{{{
 impl fmt::Display for Move {//{{{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.castle {
-            Some(Castle::Kingside)  => write!(f, "0-0"),
-            Some(Castle::Queenside) => write!(f, "0-0-0"),
+            Some(Castle::Kingside)  => write!(f, "O-O"),
+            Some(Castle::Queenside) => write!(f, "O-O-O"),
             None => {
                 match self.kind {
                     PieceType::Bishop => write!(f, "B")?,
@@ -1512,6 +1525,44 @@ impl fmt::Display for Move {//{{{
 mod tests {
     use board::{Board, Move, Color, Pos};
     use std::collections::HashSet;
+
+    macro_rules! legal_moves_are {
+        ( $fen:expr, $($mv:expr),* ) => {{
+            let b = Board::from_fen($fen).expect("[legal_moves] bad fen!");
+            println!("\n{}", b);
+            let mut should_be = HashSet::new();
+            $(
+                should_be.insert(Move::from_algebra($mv).expect("[legal_moves] bad move!"));
+            );*
+            let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
+            assert_eq!(should_be, res);
+            b
+        }};
+    }
+
+    macro_rules! legal_moves_include {
+        ( $fen:expr, $($mv:expr),* ) => {{
+            let b = Board::from_fen($fen).expect("[legal_moves] bad fen!");
+            println!("\n{}", b);
+            let mut should_be = HashSet::new();
+            $(
+                should_be.insert(Move::from_algebra($mv).expect("[legal_moves] bad move!"));
+            );*
+            let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
+            assert!(should_be.is_subset(&res));
+            b
+        }};
+    }
+
+    macro_rules! board_after_move_is {
+        ($mv:expr, $initial:expr, $result:expr) => {{
+            let b = Board::from_fen($initial).expect("[board_after_move_is] bad fen!");
+            assert_eq!(
+                b.make_move(&Move::from_algebra($mv).expect("[board_after_move_is] bad move")).unwrap(),
+                Board::from_fen($result).expect("[board_after_move_is] bad fen!")
+            );
+        }};
+    }
 //}}}
     #[test] // initial_moves//{{{
     fn initial_moves() {
@@ -1522,414 +1573,170 @@ mod tests {
 //}}}
     #[test] // white_pawn//{{{
     fn white_pawn() {
-        let b = Board::from_fen("8/8/8/8/3p4/p1p5/1P1P4/8 w - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("b2-b3").unwrap());
-        should_be.insert(Move::from_algebra("b2-b4").unwrap());
-        should_be.insert(Move::from_algebra("b2xa3").unwrap());
-        should_be.insert(Move::from_algebra("b2xc3").unwrap());
-        should_be.insert(Move::from_algebra("d2xc3").unwrap());
-        should_be.insert(Move::from_algebra("d2-d3").unwrap());
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("b2-b3").unwrap()).unwrap(),
-            Board::from_fen("8/8/8/8/3p4/pPp5/3P4/8 b - - 0 1").unwrap()
-        );
+        legal_moves_are!("8/8/8/8/3p4/p1p5/1P1P4/8 w - - 0 1",
+            "b2-b3", "b2-b4", "b2xa3", "b2xc3", "d2xc3", "d2-d3");
+        board_after_move_is!("b2-b3",
+            "8/8/8/8/3p4/p1p5/1P1P4/8 w - - 0 1",
+            "8/8/8/8/3p4/pPp5/3P4/8 b - - 0 1");
     }
 //}}}
     #[test] // black_pawn//{{{
     fn black_pawn() {
-        let b = Board::from_fen("8/2p4p/1P1P4/7P/8/8/8/8 b - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("c7-c5").unwrap());
-        should_be.insert(Move::from_algebra("c7-c6").unwrap());
-        should_be.insert(Move::from_algebra("c7xb6").unwrap());
-        should_be.insert(Move::from_algebra("c7xd6").unwrap());
-        should_be.insert(Move::from_algebra("h7-h6").unwrap());
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("c7-c5").unwrap()).unwrap(),
-            Board::from_fen("8/7p/1P1P4/2p4P/8/8/8/8 w - - 0 2").unwrap()
-        );
+        legal_moves_are!("8/2p4p/1P1P4/7P/8/8/8/8 b - - 0 1",
+            "c7-c5", "c7-c6", "c7xb6", "c7xd6", "h7-h6");
+        board_after_move_is!("c7-c5",
+            "8/2p4p/1P1P4/7P/8/8/8/8 b - - 0 1",
+            "8/7p/1P1P4/2p4P/8/8/8/8 w - - 0 2");
     }
 //}}}
     #[test] // white_en_passant//{{{
     fn white_en_passant() {
-        let b = Board::from_fen("8/8/8/pP6/8/8/8/8 w - a6 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("b5-b6").unwrap());
-        should_be.insert(Move::from_algebra("b5xa6e.p.").unwrap());
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert!(b.threatens(Color::White, Pos::from_algebra("a6").unwrap()));
-        assert_eq!(
-            b.make_move(&Move::from_algebra("b5xa6e.p.").unwrap()).unwrap(),
-            Board::from_fen("8/8/P7/8/8/8/8/8 b - - 0 1").unwrap()
-        );
+        let b = legal_moves_are!("8/8/8/pP6/8/8/8/8 w - a6 0 1",
+            "b5-b6", "b5xa6e.p.");
+        assert!(b.threatens(Color::White, pos!("a5")));
+        board_after_move_is!("b5xa6e.p.",
+            "8/8/8/pP6/8/8/8/8 w - a6 0 1",
+            "8/8/P7/8/8/8/8/8 b - - 0 1");
     }
 //}}}
     #[test] // black_en_passant //{{{
     fn black_en_passant() {
-        let b = Board::from_fen("8/8/8/8/pP6/8/8/8 b - b3 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("a4-a3").unwrap());
-        should_be.insert(Move::from_algebra("a4xb3e.p.").unwrap());
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert!(b.threatens(Color::Black, Pos::from_algebra("b3").unwrap()));
-        assert_eq!(
-            b.make_move(&Move::from_algebra("a4xb3e.p.").unwrap()).unwrap(),
-            Board::from_fen("8/8/8/8/8/1p6/8/8 w - - 0 2").unwrap()
-        );
+        let b = legal_moves_are!("8/8/8/8/pP6/8/8/8 b - b3 0 1", "a4-a3", "a4xb3e.p.");
+        assert!(b.threatens(Color::Black, pos!("b3")));
+        board_after_move_is!("a4xb3e.p.",
+            "8/8/8/8/pP6/8/8/8 b - b3 0 1",
+            "8/8/8/8/8/1p6/8/8 w - - 0 2");
     }
 //}}}
     #[test] // white_promotion//{{{
     fn white_promotion() {
-        let b = Board::from_fen("3n4/4P3/8/8/8/8/8/8 w - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("e7-e8=Q").unwrap());
-        should_be.insert(Move::from_algebra("e7-e8=N").unwrap());
-        should_be.insert(Move::from_algebra("e7-e8=R").unwrap());
-        should_be.insert(Move::from_algebra("e7-e8=B").unwrap());
-        should_be.insert(Move::from_algebra("e7xd8=Q").unwrap());
-        should_be.insert(Move::from_algebra("e7xd8=N").unwrap());
-        should_be.insert(Move::from_algebra("e7xd8=R").unwrap());
-        should_be.insert(Move::from_algebra("e7xd8=B").unwrap());
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("e7-e8=N").unwrap()).unwrap(),
-            Board::from_fen("3nN4/8/8/8/8/8/8/8 b - - 0 1").unwrap()
-        );
+        legal_moves_are!("3n4/4P3/8/8/8/8/8/8 w - - 0 1",
+            "e7-e8=Q", "e7-e8=N", "e7-e8=R", "e7-e8=B", "e7xd8=Q", "e7xd8=N", "e7xd8=R", "e7xd8=B");
+        board_after_move_is!("e7-e8=N",
+            "3n4/4P3/8/8/8/8/8/8 w - - 0 1",
+            "3nN4/8/8/8/8/8/8/8 b - - 0 1");
     }
 //}}}
     #[test] // black_promotion//{{{
     fn black_promotion() {
-        let b = Board::from_fen("8/8/8/8/8/8/3p4/4N3/ b - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("d2-d1=Q").unwrap());
-        should_be.insert(Move::from_algebra("d2-d1=N").unwrap());
-        should_be.insert(Move::from_algebra("d2-d1=R").unwrap());
-        should_be.insert(Move::from_algebra("d2-d1=B").unwrap());
-        should_be.insert(Move::from_algebra("d2xe1=Q").unwrap());
-        should_be.insert(Move::from_algebra("d2xe1=N").unwrap());
-        should_be.insert(Move::from_algebra("d2xe1=R").unwrap());
-        should_be.insert(Move::from_algebra("d2xe1=B").unwrap());
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("d2xe1=B").unwrap()).unwrap(),
-            Board::from_fen("8/8/8/8/8/8/8/4b3 w - - 0 2").unwrap()
-        );
+        legal_moves_are!("8/8/8/8/8/8/3p4/4N3/ b - - 0 1",
+            "d2-d1=Q", "d2-d1=N", "d2-d1=R", "d2-d1=B", "d2xe1=Q", "d2xe1=N", "d2xe1=R", "d2xe1=B");
+        board_after_move_is!("d2xe1=B",
+            "8/8/8/8/8/8/3p4/4N3/ b - - 0 1",
+            "8/8/8/8/8/8/8/4b3 w - - 0 2");
     }
 //}}}
     #[test] // white_queen//{{{
     fn white_queen() {
-        let b = Board::from_fen("3n1q3/4Q3/8/4p3/7P/p7/8/8 w - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Qe7xd8").unwrap());
-        should_be.insert(Move::from_algebra("Qe7xf8").unwrap());
-        should_be.insert(Move::from_algebra("Qe7xe5").unwrap());
-        should_be.insert(Move::from_algebra("Qe7xa3").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-e6").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-e8").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-a7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-b7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-c7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-d7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-f7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-g7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-h7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-f6").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-g5").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-d6").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-c5").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-b4").unwrap());
-        should_be.insert(Move::from_algebra("h4-h5").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Qe7-b4").unwrap()).unwrap(),
-            Board::from_fen("3n1q3/8/8/4p3/1Q5P/p7/8/8 b - - 1 1").unwrap()
-        );
+        legal_moves_are!("3n1q3/4Q3/8/4p3/7P/p7/8/8 w - - 0 1",
+            "Qe7xd8", "Qe7xf8", "Qe7xe5", "Qe7xa3", "Qe7-e6", "Qe7-e8",
+            "Qe7-a7", "Qe7-b7", "Qe7-c7", "Qe7-d7", "Qe7-f7", "Qe7-g7",
+            "Qe7-h7", "Qe7-f6", "Qe7-g5", "Qe7-d6", "Qe7-c5", "Qe7-b4",
+            "h4-h5");
+        board_after_move_is!("Qe7-b4",
+            "3n1q3/4Q3/8/4p3/7P/p7/8/8 w - - 0 1",
+            "3n1q3/8/8/4p3/1Q5P/p7/8/8 b - - 1 1");
     }
 //}}}
     #[test] // black_queen//{{{
     fn black_queen() {
-        let b = Board::from_fen("3N1Q3/4q3/8/4P3/7p/P7/8/8 b - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Qe7xd8").unwrap());
-        should_be.insert(Move::from_algebra("Qe7xf8").unwrap());
-        should_be.insert(Move::from_algebra("Qe7xe5").unwrap());
-        should_be.insert(Move::from_algebra("Qe7xa3").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-e6").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-e8").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-a7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-b7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-c7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-d7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-f7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-g7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-h7").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-f6").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-g5").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-d6").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-c5").unwrap());
-        should_be.insert(Move::from_algebra("Qe7-b4").unwrap());
-        should_be.insert(Move::from_algebra("h4-h3").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Qe7-b4").unwrap()).unwrap(),
-            Board::from_fen("3N1Q3/8/8/4P3/1q5p/P7/8/8 w - - 1 2").unwrap()
-        );
+        legal_moves_are!("3N1Q3/4q3/8/4P3/7p/P7/8/8 b - - 0 1",
+            "Qe7xd8", "Qe7xf8", "Qe7xe5", "Qe7xa3", "Qe7-e6", "Qe7-e8",
+            "Qe7-a7", "Qe7-b7", "Qe7-c7", "Qe7-d7", "Qe7-f7", "Qe7-g7",
+            "Qe7-h7", "Qe7-f6", "Qe7-g5", "Qe7-d6", "Qe7-c5", "Qe7-b4",
+            "h4-h3");
+        board_after_move_is!("Qe7-b4",
+            "3N1Q3/4q3/8/4P3/7p/P7/8/8 b - - 0 1",
+            "3N1Q3/8/8/4P3/1q5p/P7/8/8 w - - 1 2");
     }
 //}}}
     #[test] // white_rook//{{{
     fn white_rook() {
-        let b = Board::from_fen("3n1q3/4R3/8/4p3/7P/p7/8/8 w - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Re7xe5").unwrap());
-        should_be.insert(Move::from_algebra("Re7-e6").unwrap());
-        should_be.insert(Move::from_algebra("Re7-e8").unwrap());
-        should_be.insert(Move::from_algebra("Re7-a7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-b7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-c7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-d7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-f7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-g7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-h7").unwrap());
-        should_be.insert(Move::from_algebra("h4-h5").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Re7-f7").unwrap()).unwrap(),
-            Board::from_fen("3n1q3/5R2/8/4p3/7P/p7/8/8 b - - 1 1").unwrap()
-        );
+        legal_moves_are!("3n1q3/4R3/8/4p3/7P/p7/8/8 w - - 0 1",
+            "Re7xe5", "Re7-e6", "Re7-e8", "Re7-a7", "Re7-b7", "Re7-c7",
+            "Re7-d7", "Re7-f7", "Re7-g7", "Re7-h7", "h4-h5");
+        board_after_move_is!("Re7-f7",
+            "3n1q3/4R3/8/4p3/7P/p7/8/8 w - - 0 1",
+            "3n1q3/5R2/8/4p3/7P/p7/8/8 b - - 1 1");
     }
 //}}}
     #[test] // black_rook//{{{
     fn black_rook() {
-        let b = Board::from_fen("3N1Q3/4r3/8/4P3/7p/P7/8/8 b - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Re7xe5").unwrap());
-        should_be.insert(Move::from_algebra("Re7-e6").unwrap());
-        should_be.insert(Move::from_algebra("Re7-e8").unwrap());
-        should_be.insert(Move::from_algebra("Re7-a7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-b7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-c7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-d7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-f7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-g7").unwrap());
-        should_be.insert(Move::from_algebra("Re7-h7").unwrap());
-        should_be.insert(Move::from_algebra("h4-h3").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Re7-f7").unwrap()).unwrap(),
-            Board::from_fen("3N1Q3/5r2/8/4P3/7p/P7/8/8 w - - 1 2").unwrap()
-        );
+        legal_moves_are!("3N1Q3/4r3/8/4P3/7p/P7/8/8 b - - 0 1",
+            "Re7xe5", "Re7-e6", "Re7-e8", "Re7-a7", "Re7-b7", "Re7-c7",
+            "Re7-d7", "Re7-f7", "Re7-g7", "Re7-h7", "h4-h3");
+        board_after_move_is!("Re7-f7",
+            "3N1Q3/4r3/8/4P3/7p/P7/8/8 b - - 0 1",
+            "3N1Q3/5r2/8/4P3/7p/P7/8/8 w - - 1 2");
     }
 //}}}
     #[test] // white_bishop//{{{
     fn white_bishop() {
-        let b = Board::from_fen("3n1q3/4B3/8/4p3/7P/p7/8/8 w - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Be7xd8").unwrap());
-        should_be.insert(Move::from_algebra("Be7xf8").unwrap());
-        should_be.insert(Move::from_algebra("Be7xa3").unwrap());
-        should_be.insert(Move::from_algebra("Be7-f6").unwrap());
-        should_be.insert(Move::from_algebra("Be7-g5").unwrap());
-        should_be.insert(Move::from_algebra("Be7-d6").unwrap());
-        should_be.insert(Move::from_algebra("Be7-c5").unwrap());
-        should_be.insert(Move::from_algebra("Be7-b4").unwrap());
-        should_be.insert(Move::from_algebra("h4-h5").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Be7xd8").unwrap()).unwrap(),
-            Board::from_fen("3B1q3/8/8/4p3/7P/p7/8/8 b - - 0 1").unwrap()
-        );
+        legal_moves_are!("3n1q3/4B3/8/4p3/7P/p7/8/8 w - - 0 1",
+            "Be7xd8", "Be7xf8", "Be7xa3", "Be7-f6", "Be7-g5", "Be7-d6",
+            "Be7-c5", "Be7-b4", "h4-h5");
+        board_after_move_is!("Be7xd8",
+            "3n1q3/4B3/8/4p3/7P/p7/8/8 w - - 0 1",
+            "3B1q3/8/8/4p3/7P/p7/8/8 b - - 0 1");
     }
 //}}}
     #[test] // black_bishop//{{{
     fn black_bishop() {
-        let b = Board::from_fen("3N1Q3/4b3/8/4P3/7p/P7/8/8 b - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Be7xd8").unwrap());
-        should_be.insert(Move::from_algebra("Be7xf8").unwrap());
-        should_be.insert(Move::from_algebra("Be7xa3").unwrap());
-        should_be.insert(Move::from_algebra("Be7-f6").unwrap());
-        should_be.insert(Move::from_algebra("Be7-g5").unwrap());
-        should_be.insert(Move::from_algebra("Be7-d6").unwrap());
-        should_be.insert(Move::from_algebra("Be7-c5").unwrap());
-        should_be.insert(Move::from_algebra("Be7-b4").unwrap());
-        should_be.insert(Move::from_algebra("h4-h3").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Be7xd8").unwrap()).unwrap(),
-            Board::from_fen("3b1Q3/8/8/4P3/7p/P7/8/8 w - - 0 2").unwrap()
-        );
+        legal_moves_are!("3N1Q3/4b3/8/4P3/7p/P7/8/8 b - - 0 1",
+            "Be7xd8", "Be7xf8", "Be7xa3", "Be7-f6", "Be7-g5", "Be7-d6", "Be7-c5", "Be7-b4", "h4-h3");
+        board_after_move_is!("Be7xd8",
+            "3N1Q3/4b3/8/4P3/7p/P7/8/8 b - - 0 1",
+            "3b1Q3/8/8/4P3/7p/P7/8/8 w - - 0 2");
     }
 //}}}
     #[test] // white_knight//{{{
     fn white_knight() {
-        let b = Board::from_fen("N7/2p5/8/8/4N3/2p5/8/8 w - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Na8xc7").unwrap());
-        should_be.insert(Move::from_algebra("Na8-b6").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-c5").unwrap());
-        should_be.insert(Move::from_algebra("Ne4xc3").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-d6").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-d2").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-f6").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-f2").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-g5").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-g3").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Ne4-c5").unwrap()).unwrap(),
-            Board::from_fen("N7/2p5/8/2N5/8/2p5/8/8 b - - 1 1").unwrap()
-        );
+        legal_moves_are!("N7/2p5/8/8/4N3/2p5/8/8 w - - 0 1",
+            "Na8xc7", "Na8-b6", "Ne4-c5", "Ne4xc3", "Ne4-d6", "Ne4-d2",
+            "Ne4-f6", "Ne4-f2", "Ne4-g5", "Ne4-g3");
+        board_after_move_is!("Ne4-c5",
+            "N7/2p5/8/8/4N3/2p5/8/8 w - - 0 1",
+            "N7/2p5/8/2N5/8/2p5/8/8 b - - 1 1");
     }
 //}}}
     #[test] // black_knight//{{{
     fn black_knight() {
-        let b = Board::from_fen("n7/2P5/8/8/4n3/2P5/8/8 b - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Na8xc7").unwrap());
-        should_be.insert(Move::from_algebra("Na8-b6").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-c5").unwrap());
-        should_be.insert(Move::from_algebra("Ne4xc3").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-d6").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-d2").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-f6").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-f2").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-g5").unwrap());
-        should_be.insert(Move::from_algebra("Ne4-g3").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Ne4-c5").unwrap()).unwrap(),
-            Board::from_fen("n7/2P5/8/2n5/8/2P5/8/8 w - - 1 2").unwrap()
-        );
+        legal_moves_are!("n7/2P5/8/8/4n3/2P5/8/8 b - - 0 1",
+            "Na8xc7", "Na8-b6", "Ne4-c5", "Ne4xc3", "Ne4-d6", "Ne4-d2",
+            "Ne4-f6", "Ne4-f2", "Ne4-g5", "Ne4-g3");
+        board_after_move_is!("Ne4-c5",
+            "n7/2P5/8/8/4n3/2P5/8/8 b - - 0 1",
+            "n7/2P5/8/2n5/8/2P5/8/8 w - - 1 2");
     }
 //}}}
     #[test] // white_king//{{{
     fn white_king() {
-        let b = Board::from_fen("n/1p6/2KP5/1p6/8/8/8/8 w - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Kc6xb7").unwrap());
-        should_be.insert(Move::from_algebra("Kc6-d7").unwrap());
-        should_be.insert(Move::from_algebra("Kc6-d5").unwrap());
-        should_be.insert(Move::from_algebra("Kc6xb5").unwrap());
-        should_be.insert(Move::from_algebra("Kc6-c5").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(should_be, res);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Kc6xb7").unwrap()).unwrap(),
-            Board::from_fen("n/1K6/3P5/1p6/8/8/8/8 b - - 0 1").unwrap()
-        );
+        legal_moves_are!("n/1p6/2KP5/1p6/8/8/8/8 w - - 0 1",
+            "Kc6xb7", "Kc6-d7", "Kc6-d5", "Kc6xb5", "Kc6-c5");
+        board_after_move_is!("Kc6xb7",
+            "n/1p6/2KP5/1p6/8/8/8/8 w - - 0 1",
+            "n/1K6/3P5/1p6/8/8/8/8 b - - 0 1");
     }
 //}}}
     #[test] // black_king//{{{
     fn black_king() {
-        let b = Board::from_fen("N/1P6/2kp5/1P6/8/8/8/8 b - - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("Kc6xb7").unwrap());
-        should_be.insert(Move::from_algebra("Kc6-d7").unwrap());
-        should_be.insert(Move::from_algebra("Kc6-d5").unwrap());
-        should_be.insert(Move::from_algebra("Kc6xb5").unwrap());
-        should_be.insert(Move::from_algebra("Kc6-c5").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert_eq!(res, should_be);
-        assert_eq!(
-            b.make_move(&Move::from_algebra("Kc6xb7").unwrap()).unwrap(),
-            Board::from_fen("N/1k6/3p5/1P6/8/8/8/8 w - - 0 2").unwrap()
-        );
+        legal_moves_are!("N/1P6/2kp5/1P6/8/8/8/8 b - - 0 1",
+            "Kc6xb7", "Kc6-d7", "Kc6-d5", "Kc6xb5", "Kc6-c5");
+        board_after_move_is!("Kc6xb7",
+            "N/1P6/2kp5/1P6/8/8/8/8 b - - 0 1",
+            "N/1k6/3p5/1P6/8/8/8/8 w - - 0 2");
     }
     //}}}
     #[test] // white_castling//{{{
     fn white_castling() {
-        let b = Board::from_fen("8/8/8/8/8/8/8/R3K2R w KQ - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("O-O").unwrap());
-        should_be.insert(Move::from_algebra("O-O-O").unwrap());
-        println!("should_be=");
-        for mov in should_be.iter() {
-            println!("  {}", mov);
-        }
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert!(should_be.is_subset(&res));
-        assert_eq!(
-            b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap(),
-            Board::from_fen("8/8/8/8/8/8/8/R31RK1 b - - 1 1").unwrap()
-        );
-        assert_eq!(
-            b.make_move(&Move::from_algebra("O-O-O").unwrap()).unwrap(),
-            Board::from_fen("8/8/8/8/8/8/8/2KR3R b - - 1 1").unwrap()
-        );
+        legal_moves_include!("8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
+            "O-O", "O-O-O");
+        board_after_move_is!("O-O",
+            "8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
+            "8/8/8/8/8/8/8/R31RK1 b - - 1 1");
+        board_after_move_is!("O-O-O",
+            "8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
+            "8/8/8/8/8/8/8/2KR3R b - - 1 1");
     }
 //}}}
     #[test] // white_castling2 {{{
@@ -1937,26 +1744,19 @@ mod tests {
         let b = Board::from_fen("8/8/8/8/8/8/8/RN2K2R w KQ - 0 1").unwrap();
         println!("\n{}", b);
         let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert!(!res.contains(&Move::from_algebra("O-O-O").unwrap()));
+        assert!(!res.contains(&mv!("O-O-O")));
     }
 //}}}
     #[test] // black_castling//{{{
     fn black_castling() {
-        let b = Board::from_fen("r3k2r/8/8/8/8/8/8/8 b kq - 0 1").unwrap();
-        println!("\n{}", b);
-        let mut should_be = HashSet::new();
-        should_be.insert(Move::from_algebra("O-O").unwrap());
-        should_be.insert(Move::from_algebra("O-O-O").unwrap());
-        let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
-        assert!(should_be.is_subset(&res));
-        assert_eq!(
-            b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap(),
-            Board::from_fen("r31rk1/8/8/8/8/8/8/8 w - - 1 2").unwrap()
-        );
-        assert_eq!(
-            b.make_move(&Move::from_algebra("O-O-O").unwrap()).unwrap(),
-            Board::from_fen("2kr3r/8/8/8/8/8/8/8 w - - 1 2").unwrap()
-        );
+        legal_moves_include!("r3k2r/8/8/8/8/8/8/8 b kq - 0 1",
+            "O-O", "O-O-O");
+        board_after_move_is!("O-O",
+            "r3k2r/8/8/8/8/8/8/8 b kq - 0 1",
+            "r31rk1/8/8/8/8/8/8/8 w - - 1 2");
+        board_after_move_is!("O-O-O",
+            "r3k2r/8/8/8/8/8/8/8 b kq - 0 1",
+            "2kr3r/8/8/8/8/8/8/8 w - - 1 2");
     }
 //}}}
     #[test] // white_castling_through_threat {{{
@@ -1965,7 +1765,7 @@ mod tests {
         // shouldn't be able to castle through threatened square!
         let b = Board::from_fen("8/8/8/8/8/5q3/8/4K2R w KQ - 0 1").unwrap();
         println!("\n{}",b);
-        b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap();
+        b.make_move(&mv!("O-O")).unwrap();
     }
 //}}}
     #[test] // black_castling_through_threat {{{
@@ -1974,14 +1774,15 @@ mod tests {
         // shouldn't be able to castle through threatened square!
         let b = Board::from_fen("4k2r/8/5Q3/8/8/8/8/8 b kq - 0 1").unwrap();
         println!("\n{}",b);
-        b.make_move(&Move::from_algebra("O-O").unwrap()).unwrap();
+        b.make_move(&mv!("O-O")).unwrap();
     }
 //}}}
 
-    #[test] // pawn score {{{
-    fn pawn_score_black() {
-        let b = Board::from_fen("p7/8/8/p7/8/8/8/8 b - - 0 1").unwrap();
-        assert_eq!(b.score(Color::Black), 200);
+    #[test]
+    fn checkmate() {
+        let b = Board::from_fen("4k3/8/3P4/6Q1/8/8/8/K7 w - - 0 1").unwrap();
+        println!("\n{}",b);
+        let (mv, _) = b.best_move(1).unwrap();
+        assert_eq!(mv, mv!("Qg5e7"));
     }
-    // }}}
 }
