@@ -27,6 +27,7 @@ use std::env;
 use std::io::Write;
 use std::process::exit;
 
+
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [OPTIONS]", program);
     print!("{}", opts.usage(&brief));
@@ -78,6 +79,7 @@ fn main() {
     let re_nps      = Regex::new(r"^nps (\d+)$").unwrap();
     let re_name     = Regex::new(r"^name (.+)$").unwrap();
     let re_rating   = Regex::new(r"^rating (\d+) (\d+)$").unwrap();
+    let re_usermove = Regex::new(r"^usermove ([\w\d]+)$").unwrap();
 
     let mut b = Board::initial();
     let mut force_mode = true;
@@ -89,20 +91,8 @@ fn main() {
         let s = next_input_line();
         debug!("recieved message: \"{}\"", s);
 
-        if s == "xboard" || s == "random" || s == "white" || s == "black" ||
-            s == "quit" || s == "hint" || s == "bk" || s == "computer" ||
-            re_variant.is_match(&s) ||
-            re_accepted.is_match(&s) ||
-            re_rejected.is_match(&s) ||
-            re_nps.is_match(&s) ||
-            re_name.is_match(&s) ||
-            re_rating.is_match(&s)
-        {
-            ignore();
-        }
-
-        else if re_protover.is_match(&s) {
-            send!("feature sigint=0 ping=1 playother=1 setboard=1 analyze=0 done=1");
+        if re_protover.is_match(&s) {
+            send!("feature usermove=1 sigint=0 ping=1 playother=1 setboard=1 analyze=0 done=1");
         }
 
         else if re_ping.is_match(&s) {
@@ -196,8 +186,8 @@ fn main() {
 
         // ^result ([012/]+-[012/]+|\*) (\{.*\})$
         else if re_result.is_match(&s) {
-            // TODO: implement this-- allows aborting
-            ignore()
+            // TODO: abort
+            ignore();
         }
 
         // ^setboard (.+)$
@@ -237,13 +227,9 @@ fn main() {
             }
         }
 
-        else if s == "hard" { ignore() } // turn on pondering
-        else if s == "easy" { ignore() } // turn off pondering
-        else if s == "post" { ignore() } // turn on thinking/pondering output
-        else if s == "nopost" { ignore() } // turn off thinking/pondering ouptut
-
-        else {
-            match Move::from_xboard_format(&s, &b) {
+        else if re_usermove.is_match(&s) {
+            let ref mv_str = re_usermove.captures(&s).unwrap()[1];
+            match Move::from_xboard_format(mv_str, &b) {
                 Ok(mv) => {
                     debug!("got move {}", mv);
                     match b.make_move(&mv) {
@@ -268,6 +254,11 @@ fn main() {
             }
         }
 
+        else {
+            ignore();
+        }
+
+        // make a move if it is time
         if !force_mode && b.color_to_move == my_color {
             let mv_result;
             if engine_random_choice {

@@ -40,6 +40,8 @@ macro_rules! board_state_error(
 macro_rules! debug(
     ($($arg:tt)*) => { {
         let mut stderr = ::std::io::stderr();
+        let r = write!(&mut stderr, "# ");
+        r.expect("failed printing to stderr");
         let r = writeln!(&mut stderr, $($arg)*);
         r.expect("failed printing to stderr");
         let r = stderr.flush();
@@ -51,13 +53,13 @@ macro_rules! debug(
 macro_rules! send(
     ($($arg:tt)*) => { {
         let mut stdout = ::std::io::stdout();
-        let mut stderr = ::std::io::stderr();
+        // let mut stderr = ::std::io::stderr();
         let s = format!($($arg)*);
         stdout.write(s.as_str().as_bytes()).expect("failed printing to stdout");
         stdout.write("\n".as_bytes()).expect("failed printing to stdout");
-        let debug = "sent message: \"".to_string() + &s + "\"\n";
-        stderr.write(debug.as_str().as_bytes()).expect("failed printing to stderr");
-        stderr.flush().expect("failed flushing stderr");
+        // let debug = "sent message: \"".to_string() + &s + "\"\n";
+        // stderr.write(debug.as_str().as_bytes()).expect("failed printing to stderr");
+        // stderr.flush().expect("failed flushing stderr");
         stdout.flush().expect("failed flushing stdout");
     } }
 );
