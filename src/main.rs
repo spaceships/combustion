@@ -3,10 +3,19 @@ extern crate regex;
 extern crate getopts;
 
 #[macro_use]
+pub mod macros;
+pub mod position;
 pub mod util;
+pub mod moves;
+pub mod piece;
 pub mod board;
+pub mod board_serialization;
+pub mod board_moves;
+pub mod board_tests;
 
-use board::{Board, Move, Color};
+use board::Board;
+use moves::Move;
+use piece::Color;
 use util::ChessError;
 
 use getopts::Options;
