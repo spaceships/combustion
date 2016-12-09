@@ -15,6 +15,9 @@ mod tests {
             $(
                 should_be.insert(Move::from_algebra($mv).expect("[legal_moves] bad move!"));
             );*
+            for mv in b.legal_moves().unwrap() {
+                println!("{}", mv);
+            }
             let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
             assert_eq!(should_be, res);
             b

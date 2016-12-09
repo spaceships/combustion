@@ -1,9 +1,10 @@
-use std::fmt;
-
 use piece::{Color, PieceType};
 use position::Pos;
 use util::ChessError;
 use board::Board;
+
+use std::fmt;
+use std::cmp::Ordering;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Castle {
@@ -25,7 +26,6 @@ pub struct Move {
 impl Move {
     #[allow(dead_code)]
     pub fn from_algebra(s: &str) -> Result<Move, ChessError> {
-        println!("{}", s);
         if s == "O-O" {
             Ok( Move {
                 kind: PieceType::King,
@@ -200,6 +200,28 @@ impl fmt::Display for Move {
                 }
                 write!(f, "")
             }
+        }
+    }
+}
+
+impl PartialOrd for Move {
+    fn partial_cmp(&self, other: &Move) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for Move {
+    fn cmp(&self, other: &Move) -> Ordering {
+        match (self.promotion, other.promotion) {
+            (Some(p), Some(q)) => return p.cmp(&q),
+            (Some(_), None)    => return Ordering::Less,
+            (None, Some(_))    => return Ordering::Greater,
+            _                  => {}
+        }
+        match (self.takes, other.takes) {
+            (true, true)|(false, false) => self.kind.cmp(&other.kind),
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
         }
     }
 }

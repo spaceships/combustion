@@ -1,6 +1,7 @@
 use std::fmt;
+use std::cmp::Ordering;
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Color {
     White,
     Black,
@@ -15,6 +16,7 @@ impl Color {
     }
 }
 
+
 #[derive(Copy, Clone, PartialEq, Debug, Eq, Hash)]
 pub enum PieceType {
     Pawn,
@@ -25,7 +27,7 @@ pub enum PieceType {
     King,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Piece {
     pub kind: PieceType,
     pub color: Color,
@@ -55,6 +57,68 @@ impl fmt::Display for Piece {
             Piece { kind: PieceType::Rook,   color: Color::Black } => write!(f, "r"),
             Piece { kind: PieceType::Queen,  color: Color::Black } => write!(f, "q"),
             Piece { kind: PieceType::King,   color: Color::Black } => write!(f, "k"),
+        }
+    }
+}
+
+impl PieceType {
+    // used for sorting moves
+    fn order(&self) -> usize {
+        match *self {
+            PieceType::Pawn   => 5,
+            PieceType::King   => 4,
+            PieceType::Bishop => 3,
+            PieceType::Knight => 2,
+            PieceType::Rook   => 1,
+            PieceType::Queen  => 0,
+        }
+    }
+}
+
+impl PartialOrd for PieceType {
+    fn partial_cmp(&self, other: &PieceType) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for PieceType {
+    fn cmp(&self, other: &PieceType) -> Ordering {
+        self.order().cmp(&other.order())
+    }
+}
+
+impl Color {
+    fn order(&self) -> usize {
+        match *self {
+            Color::White => 0,
+            Color::Black => 1,
+        }
+    }
+}
+
+impl PartialOrd for Color {
+    fn partial_cmp(&self, other: &Color) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for Color {
+    fn cmp(&self, other: &Color) -> Ordering {
+        self.order().cmp(&other.order())
+    }
+}
+
+impl PartialOrd for Piece {
+    fn partial_cmp(&self, other: &Piece) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl Ord for Piece {
+    fn cmp(&self, other: &Piece) -> Ordering {
+        match self.color.cmp(&other.color) {
+            Ordering::Equal => self.kind.cmp(&other.kind),
+            order => order,
         }
     }
 }

@@ -43,10 +43,10 @@ impl Board {
 
     pub fn best_move(&self, depth: usize) -> Result<(Move, isize), ChessError> {
         // find the move with the weakest response
-        let moves = self.legal_moves()?;
         let mut rng = rand::thread_rng();
         let mut best_score = isize::min_value();
         let mut best_move = None;
+        let moves = self.legal_moves()?;
         for mv in moves {
             let score;
             if depth == 0 {

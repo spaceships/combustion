@@ -23,7 +23,8 @@ impl Board {
 
     pub fn legal_moves(&self) -> Result<Vec<Move>, ChessError> {
         // filter moves where the king is in check
-        let moves: Vec<Move> = self.moves().into_iter().filter(|m| self.make_move(m).is_ok()).collect();
+        let mut moves: Vec<Move> = self.moves().into_iter().filter(|m| self.make_move(m).is_ok()).collect();
+        moves.sort();
         // check for checkmate, stalemate, no moves (when there are no kings, haha)
         let c = self.color_to_move;
         let kings = self.get_pieces_by_type_and_color(PieceType::King, c);
