@@ -37,9 +37,6 @@ pub struct Piece {
     color: Color,
 }
 
-// const WHITE_KING: Piece = Piece { kind: PieceType::King, color: Color::White };
-// const BLACK_KING: Piece = Piece { kind: PieceType::King, color: Color::White };
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Castle {
     Kingside,
@@ -1246,7 +1243,7 @@ impl Board {
                 PieceType::Bishop => score += 300,
                 PieceType::Rook   => score += 500,
                 PieceType::Queen  => score += 900,
-                PieceType::King   => score += 400,
+                PieceType::King   => score += isize::max_value()/2,
             }
         }
         for (_, p) in self.get_pieces_by_color(color.other()) {
@@ -1256,7 +1253,7 @@ impl Board {
                 PieceType::Bishop => score -= 300,
                 PieceType::Rook   => score -= 500,
                 PieceType::Queen  => score -= 900,
-                PieceType::King   => score -= 400,
+                PieceType::King   => score -= isize::max_value()/2,
             }
         }
         score
@@ -1271,9 +1268,15 @@ impl Board {
         for mv in moves {
             let score;
             if depth == 0 {
-                score = self.make_move(&mv)?.score(self.color_to_move);
+                score = match self.make_move(&mv) {
+                    Err(ChessError::Checkmate) => return Ok((mv, isize::max_value())),
+                    Err(ChessError::Stalemate) => 0,
+                    Err(e)                     => return Err(e),
+                    Ok(new_board)              => new_board.score(self.color_to_move),
+                };
             } else {
-                score = self.make_move(&mv)?.alpha_beta(self.color_to_move, depth, isize::min_value(), isize::max_value())?;
+                score = self.make_move(&mv)?.alpha_beta(
+                    self.color_to_move, depth, isize::min_value(), isize::max_value());
             }
             if score > best_score || (score == best_score && rng.gen())
             {
@@ -1284,47 +1287,46 @@ impl Board {
         Ok((best_move.unwrap(), best_score))
     }
 
-    fn alpha_beta(&self, my_color: Color, depth: usize, alpha_in: isize, beta_in: isize)
-        -> Result<isize, ChessError>
+    fn alpha_beta(&self, my_color: Color, depth: usize, alpha_in: isize, beta_in: isize) -> isize
     {
         let mut alpha = alpha_in;
         let mut beta  = beta_in;
         if depth == 0 {
-            return Ok(self.score(my_color));
+            return self.score(my_color);
         }
         if self.color_to_move == my_color {
             // maximizing player
             let mut v = isize::min_value();
-            for mv in self.legal_moves()? {
-                let score = match self.make_move(&mv)?.alpha_beta(my_color, depth - 1, alpha, beta) {
-                    Err(ChessError::Checkmate) => isize::max_value(),
-                    Err(ChessError::Stalemate) => 0,
-                    Ok(score) => score,
-                    Err(e) => return Err(e),
-                };
-                v     = max(v, score);
-                alpha = max(alpha, v);
-                if beta <= alpha {
-                    break;
-                }
+            match self.legal_moves() {
+                Err(ChessError::Checkmate) => return isize::min_value(),
+                Err(ChessError::Stalemate) => return 0,
+                Err(e) => panic!("{}", e),
+                Ok(moves) => for mv in moves {
+                    let score = self.make_move(&mv).unwrap().alpha_beta(my_color, depth - 1, alpha, beta);
+                    v     = max(v, score);
+                    alpha = max(alpha, v);
+                    if beta <= alpha {
+                        break;
+                    }
+                },
             }
-            Ok(v)
+            v
         } else {
             let mut v = isize::max_value();
-            for mv in self.legal_moves()? {
-                let score = match self.make_move(&mv)?.alpha_beta(my_color, depth - 1, alpha, beta) {
-                    Err(ChessError::Checkmate) => isize::min_value(),
-                    Err(ChessError::Stalemate) => 0,
-                    Ok(score) => score,
-                    Err(e) => return Err(e),
-                };
-                v = min(v, score);
-                beta = min(beta, v);
-                if beta <= alpha {
-                    break;
-                }
+            match self.legal_moves() {
+                Err(ChessError::Checkmate) => return isize::max_value(),
+                Err(ChessError::Stalemate) => return 0,
+                Err(e) => panic!("{}", e),
+                Ok(moves) => for mv in moves {
+                    let score = self.make_move(&mv).unwrap().alpha_beta(my_color, depth - 1, alpha, beta);
+                    v = min(v, score);
+                    beta = min(beta, v);
+                    if beta <= alpha {
+                        break;
+                    }
+                },
             }
-            Ok(v)
+            v
         }
     }
 
@@ -1737,10 +1739,6 @@ mod tests {
         board_after_move_is!("O-O-O",
             "8/8/8/8/8/8/8/R3K2R w KQ - 0 1",
             "8/8/8/8/8/8/8/2KR3R b - - 1 1");
-    }
-//}}}
-    #[test] // white_castling2 {{{
-    fn white_castling2() {
         let b = Board::from_fen("8/8/8/8/8/8/8/RN2K2R w KQ - 0 1").unwrap();
         println!("\n{}", b);
         let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
@@ -1777,12 +1775,12 @@ mod tests {
         b.make_move(&mv!("O-O")).unwrap();
     }
 //}}}
-
-    #[test]
+    #[test] // checkmate {{{
     fn checkmate() {
         let b = Board::from_fen("4k3/8/3P4/6Q1/8/8/8/K7 w - - 0 1").unwrap();
         println!("\n{}",b);
         let (mv, _) = b.best_move(1).unwrap();
-        assert_eq!(mv, mv!("Qg5e7"));
+        assert_eq!(mv, mv!("Qg5-e7"));
     }
+//}}}
 }
