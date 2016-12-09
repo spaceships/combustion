@@ -57,8 +57,7 @@ impl Board {
                     Ok(new_board)              => new_board.score(self.color_to_move),
                 };
             } else {
-                score = self.make_move(&mv)?.alpha_beta(
-                    self.color_to_move, depth, isize::min_value(), isize::max_value());
+                score = self.make_move(&mv)?.alpha_beta(depth);
             }
             if score > best_score || (score == best_score && rng.gen())
             {
@@ -69,7 +68,11 @@ impl Board {
         Ok((best_move.unwrap(), best_score))
     }
 
-    fn alpha_beta(&self, my_color: Color, depth: usize, alpha_in: isize, beta_in: isize) -> isize
+    pub fn alpha_beta(&self, depth: usize) -> isize {
+        self.alpha_beta_rec(self.color_to_move.other(), depth, isize::min_value(), isize::max_value())
+    }
+
+    fn alpha_beta_rec(&self, my_color: Color, depth: usize, alpha_in: isize, beta_in: isize) -> isize
     {
         let mut alpha = alpha_in;
         let mut beta  = beta_in;
@@ -84,7 +87,7 @@ impl Board {
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
-                    let score = self.make_move(&mv).unwrap().alpha_beta(my_color, depth - 1, alpha, beta);
+                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta);
                     v     = max(v, score);
                     alpha = max(alpha, v);
                     if beta <= alpha {
@@ -100,7 +103,7 @@ impl Board {
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
-                    let score = self.make_move(&mv).unwrap().alpha_beta(my_color, depth - 1, alpha, beta);
+                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta);
                     v = min(v, score);
                     beta = min(beta, v);
                     if beta <= alpha {

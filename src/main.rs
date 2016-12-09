@@ -7,6 +7,7 @@ pub mod macros;
 pub mod moves;
 pub mod piece;
 pub mod position;
+pub mod threadpool;
 pub mod util;
 
 pub mod board;
@@ -20,6 +21,7 @@ use board::Board;
 use moves::Move;
 use piece::Color;
 use util::ChessError;
+use threadpool::Threadpool;
 
 use getopts::Options;
 use regex::Regex;
@@ -57,6 +59,9 @@ fn main() {
     if opts.opt_present("h") {
         print_usage(&args[0], options);
     }
+
+    // test threadpool
+    let mut pool = Threadpool::new(8);
 
     let engine_random_choice = opts.opt_present("r");
 
@@ -264,7 +269,8 @@ fn main() {
             if engine_random_choice {
                 mv_result = b.random_move();
             } else {
-                mv_result = b.best_move(4);
+                mv_result = pool.find_best_move(&b);
+                // mv_result = b.best_move(4);
             }
             match mv_result {
                 Ok((mv,score)) => {
