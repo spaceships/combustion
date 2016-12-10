@@ -241,8 +241,6 @@ fn main() {
 
                 else if s == "?" { // move now
                     // move now with best result
-                    // set global move_now flag
-                    // worker threads check it and give their best results
                     pool.abort();
                 }
 
@@ -253,8 +251,7 @@ fn main() {
 
                 // ^result ([012/]+-[012/]+|\*) (\{.*\})$
                 else if re_result.is_match(&s) {
-                    // TODO: abort
-                    ignore();
+                    pool.abort_and_clear();
                 }
 
                 // ^setboard (.+)$

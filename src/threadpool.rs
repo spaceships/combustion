@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Condvar;
 use rand::{self, Rng};
+use std::time::Duration;
 
 type Worker = thread::JoinHandle<()>;
 
@@ -122,7 +123,7 @@ impl Threadpool {
         }
     }
 
-    pub fn abort(&mut self) {
+    pub fn abort(&self) {
         *self.abort.lock().unwrap() = true;
     }
 
@@ -136,7 +137,7 @@ impl Threadpool {
         let nmoves = match b.legal_moves() {
             Ok(moves) => {
                 for mv in moves.iter() {
-                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: 4 });
+                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: 5 });
                 }
                 moves.len()
             }
@@ -180,5 +181,13 @@ impl Threadpool {
 
     pub fn take_result(&self) -> Option<Result<(Move, isize), ChessError>> {
         mem::replace(&mut *self.result_mutex.lock().unwrap(), None)
+    }
+
+    pub fn abort_and_clear(&self) {
+        self.abort();
+        while *self.thinking.lock().unwrap() {
+            thread::sleep(Duration::from_millis(50));
+        }
+        let _ = self.take_result();
     }
 }
