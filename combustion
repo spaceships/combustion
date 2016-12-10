@@ -1,5 +1,5 @@
 #!/bin/bash
 
 export RUST_BACKTRACE=1
-# exec cargo run -q --release -- $@
-exec cargo run -q -- $@
+exec cargo run -q --release -- $@
+# exec cargo run -q -- $@

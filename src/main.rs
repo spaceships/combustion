@@ -100,7 +100,7 @@ fn main() {
     let input_watcher_thread = stdin_watcher(tx, main_signal.clone());
 
     loop {
-        debug!("TOP");
+        // debug!("TOP");
         match rx.try_recv() {
             Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
 
@@ -142,10 +142,13 @@ fn main() {
                 else if !engine_random_choice && !pool.thinking() && !force_mode && b.color_to_move == my_color {
                     debug!("finding best move");
                     pool.find_best_move(&b);
-                } else {
+                }
+
+                else {
                     // no input, no moves => wait
-                    debug!("sleep...");
-                    let _ = main_signal.wait(main_mutex.lock().unwrap()).unwrap();
+                    // debug!("sleep...");
+                    // let _ = main_signal.wait(main_mutex.lock().unwrap()).unwrap();
+                    let _ = main_signal.wait_timeout(main_mutex.lock().unwrap(), Duration::from_millis(500)).unwrap();
                 }
             }
 
@@ -308,7 +311,7 @@ fn main() {
                                     // debug!("current board:\n{}", new_board);
                                     history.push(mv);
                                     b = new_board;
-                                    debug!("new board\n{}", b);
+                                    // debug!("new board\n{}", b);
                                 }
                             }
                         }

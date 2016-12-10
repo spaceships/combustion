@@ -24,20 +24,14 @@ enum JobResult {
     Done { mv: Move, val: isize },
 }
 
-enum Message {
-    Aborted,
-}
-
 pub struct Threadpool {
     handles: Vec<Worker>,
-    result_chan: Receiver<JobResult>,
-    msg_chan: Receiver<Message>,
+    result_chan: Arc<Mutex<Receiver<JobResult>>>,
     jobs: Arc<JobQueue>,
     abort: Arc<Mutex<bool>>,
-    nthreads: usize,
     main_signal: Arc<Condvar>,
-    result_mutex: Mutex<Option<Result<(Move, isize), ChessError>>>,
-    thinking: Mutex<bool>,
+    result_mutex: Arc<Mutex<Option<Result<(Move, isize), ChessError>>>>,
+    thinking: Arc<Mutex<bool>>,
 }
 
 struct JobQueue {
@@ -56,14 +50,12 @@ impl JobQueue {
     fn next_job(&self) -> Job {
         let job;
         loop {
-            {
-                match self.jobs.lock().unwrap().pop() {
-                    Some(j) => {
-                        job = j;
-                        break;
-                    }
-                    None => { }
+            match self.jobs.lock().unwrap().pop() {
+                Some(j) => {
+                    job = j;
+                    break;
                 }
+                None => { }
             }
             match self.jobs_available.wait(self.jobs.lock().unwrap()).unwrap().pop() {
                 Some(j) => {
@@ -80,13 +72,9 @@ impl JobQueue {
         self.jobs.lock().unwrap().push(job);
         self.jobs_available.notify_one();
     }
-
-    fn reset(&self) {
-        self.jobs.lock().unwrap().clear();
-    }
 }
 
-fn worker(s: Sender<JobResult>, m: Sender<Message>, q: Arc<JobQueue>, abort: Arc<Mutex<bool>>)
+fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<Mutex<bool>>)
     -> Worker
 {
     thread::spawn(move || {
@@ -98,9 +86,6 @@ fn worker(s: Sender<JobResult>, m: Sender<Message>, q: Arc<JobQueue>, abort: Arc
                     s.send(JobResult::Done { mv: mv, val: val }).unwrap();
                 }
             }
-            if *abort.lock().unwrap() {
-                m.send(Message::Aborted).unwrap();
-            }
         }
     })
 }
@@ -110,24 +95,21 @@ impl Threadpool {
     {
         let mut hs = Vec::new();
         let (result_tx, result_rx) = channel();
-        let (msg_tx, msg_rx) = channel();
         let q = Arc::new(JobQueue::new());
         let abort = Arc::new(Mutex::new(false));
 
         for _ in 0..nthreads {
-            hs.push(worker(result_tx.clone(), msg_tx.clone(), q.clone(), abort.clone()));
+            hs.push(worker(result_tx.clone(), q.clone(), abort.clone()));
         }
 
         Threadpool {
-            nthreads: nthreads,
             handles: hs,
-            result_chan: result_rx,
-            msg_chan: msg_rx,
+            result_chan: Arc::new(Mutex::new(result_rx)),
             jobs: q,
             abort: abort,
             main_signal: main_signal,
-            result_mutex: Mutex::new(None),
-            thinking: Mutex::new(false),
+            result_mutex: Arc::new(Mutex::new(None)),
+            thinking: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -142,14 +124,6 @@ impl Threadpool {
 
     pub fn abort(&mut self) {
         *self.abort.lock().unwrap() = true;
-        self.jobs.reset();
-        for _ in 0..self.nthreads {
-            match self.msg_chan.recv().unwrap() {
-                Message::Aborted => {}
-            }
-        }
-        *self.abort.lock().unwrap() = false;
-        self.main_signal.notify_all();
     }
 
     pub fn thinking(&self) -> bool {
@@ -157,37 +131,47 @@ impl Threadpool {
     }
 
     pub fn find_best_move(&mut self, b: &Board) {
-        // notify the caller somehow when it is found
         *self.thinking.lock().unwrap() = true;
-        match b.legal_moves() {
+        *self.abort.lock().unwrap() = false; // initialize abort flag
+        let nmoves = match b.legal_moves() {
             Ok(moves) => {
                 for mv in moves.iter() {
-                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: 5 });
+                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: 4 });
                 }
-
-                // TODO: this is still blocking
-                let mut rng = rand::thread_rng();
-                let mut best_score = isize::min_value();
-                let mut best_move = None;
-                for _ in 0..moves.len() {
-                    match self.result_chan.recv().unwrap() {
-                        JobResult::Done { mv, val } =>  {
-                            if val > best_score || (val == best_score && rng.gen()) {
-                                best_move = Some(mv);
-                                best_score = val;
-                            }
-                        }
-                    }
-                }
-                *self.result_mutex.lock().unwrap() = Some(Ok((best_move.unwrap(), best_score)));
+                moves.len()
             }
 
             Err(e) => {
                 *self.result_mutex.lock().unwrap() = Some(Err(e));
+                *self.thinking.lock().unwrap() = false;
+                return;
             }
-        }
-        *self.thinking.lock().unwrap() = false;
-        self.main_signal.notify_all();
+        };
+
+        // bending over backwards to use a thread to clean up
+        let rx = self.result_chan.clone();
+        let result_mutex = self.result_mutex.clone();
+        let thinking = self.thinking.clone();
+        let main_signal = self.main_signal.clone();
+        thread::spawn(move || {
+            let mut rng = rand::thread_rng();
+            let mut best_score = isize::min_value();
+            let mut best_move = None;
+            for _ in 0..nmoves {
+                match rx.lock().unwrap().recv().unwrap() {
+                    JobResult::Done { mv, val } =>  {
+                        if val > best_score || (val == best_score && rng.gen()) {
+                            best_move = Some(mv);
+                            best_score = val;
+                        }
+                    }
+                }
+            }
+            *result_mutex.lock().unwrap() = Some(Ok((best_move.unwrap(), best_score)));
+
+            *thinking.lock().unwrap() = false;
+            main_signal.notify_all();
+        });
     }
 
     pub fn has_result(&self) -> bool {

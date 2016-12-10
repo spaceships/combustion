@@ -4,10 +4,9 @@ use piece::{Color, PieceType};
 use rand::{self, Rng};
 use util::ChessError;
 
+use std::cmp::{min, max};
 use std::sync::Arc;
 use std::sync::Mutex;
-
-use std::cmp::{min, max};
 
 impl Board {
     pub fn random_move(&self) -> Result<(Move, isize), ChessError> {

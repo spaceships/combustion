@@ -65,12 +65,12 @@ impl PieceType {
     // used for sorting moves
     fn order(&self) -> usize {
         match *self {
-            PieceType::Pawn   => 5,
-            PieceType::King   => 4,
-            PieceType::Bishop => 3,
-            PieceType::Knight => 2,
-            PieceType::Rook   => 1,
-            PieceType::Queen  => 0,
+            PieceType::Knight => 0,
+            PieceType::Bishop => 1,
+            PieceType::Rook   => 2,
+            PieceType::Queen  => 3,
+            PieceType::Pawn   => 4,
+            PieceType::King   => 5,
         }
     }
 }
