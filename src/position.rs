@@ -63,6 +63,21 @@ impl Pos {
     pub fn northwest(&self, d: isize) -> Option<Pos> { self.mv(-d,-d) }
     pub fn southeast(&self, d: isize) -> Option<Pos> { self.mv( d, d) }
     pub fn southwest(&self, d: isize) -> Option<Pos> { self.mv( d,-d) }
+
+    pub fn value(&self) -> isize {
+        if self.rank_is(1) || self.file_is('a') || self.rank_is(8) || self.file_is('h') {
+            return 0
+        }
+        if self.rank_is(2) || self.file_is('b') || self.rank_is(7) || self.file_is('g'){
+            return 1
+        }
+        if self.rank_is(3) || self.file_is('c') || self.rank_is(6) || self.file_is('f'){
+            return 2
+        }
+        else {
+            return 3
+        }
+    }
 }
 
 impl fmt::Display for Pos {
