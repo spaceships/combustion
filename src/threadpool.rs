@@ -83,7 +83,7 @@ fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<Mutex<bool>>)
             // get next job
             match q.next_job() {
                 Job { mv, board, depth } => {
-                    let val = board.alpha_beta(depth, abort.clone());
+                    let val = board.alpha_beta(depth, Some(abort.clone()));
                     s.send(JobResult::Done { mv: mv, val: val }).unwrap();
                 }
             }

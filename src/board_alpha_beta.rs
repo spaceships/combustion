@@ -61,7 +61,7 @@ impl Board {
                     Ok(new_board)              => new_board.score(self.color_to_move),
                 };
             } else {
-                score = self.make_move(&mv)?.alpha_beta(depth, Arc::new(Mutex::new(false)));
+                score = self.make_move(&mv)?.alpha_beta(depth, None);
             }
             if score > best_score || (score == best_score && rng.gen())
             {
@@ -72,28 +72,28 @@ impl Board {
         Ok((best_move.unwrap(), best_score))
     }
 
-    pub fn alpha_beta(&self, depth: usize, abort: Arc<Mutex<bool>>) -> isize {
-        self.alpha_beta_rec(self.color_to_move.other(), depth, isize::min_value(), isize::max_value(), abort)
+    pub fn alpha_beta(&self, depth: usize, abort: Option<Arc<Mutex<bool>>>) -> isize {
+        self.alpha_beta_rec(self.color_to_move.other(), depth, isize::min_value(), isize::max_value(), &abort)
     }
 
     fn alpha_beta_rec(&self, my_color: Color, depth: usize, alpha_in: isize, beta_in: isize,
-                      abort: Arc<Mutex<bool>>)
+                      abort: &Option<Arc<Mutex<bool>>>)
         -> isize
     {
         let mut alpha = alpha_in;
         let mut beta  = beta_in;
-        if depth == 0 || *abort.lock().unwrap() {
+        if depth == 0 || abort.as_ref().map_or(false, |mutex| *mutex.lock().unwrap()) {
             return self.score(my_color);
         }
         if self.color_to_move == my_color {
             // maximizing player
             let mut v = isize::min_value();
             match self.legal_moves() {
-                Err(ChessError::Checkmate) => return isize::min_value()/2,
+                Err(ChessError::Checkmate) => return isize::min_value()+1,
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
-                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta, abort.clone());
+                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta, abort);
                     v     = max(v, score);
                     alpha = max(alpha, v);
                     if beta <= alpha {
@@ -105,11 +105,11 @@ impl Board {
         } else {
             let mut v = isize::max_value();
             match self.legal_moves() {
-                Err(ChessError::Checkmate) => return isize::max_value()/2,
+                Err(ChessError::Checkmate) => return isize::max_value()-1,
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
-                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta, abort.clone());
+                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta, abort);
                     v = min(v, score);
                     beta = min(beta, v);
                     if beta <= alpha {

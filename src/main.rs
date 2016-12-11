@@ -1,7 +1,8 @@
 extern crate getopts;
+extern crate libc;
+extern crate num_cpus;
 extern crate rand;
 extern crate regex;
-extern crate num_cpus;
 
 #[macro_use]
 pub mod macros;
@@ -23,6 +24,7 @@ use moves::Move;
 use piece::Color;
 use util::ChessError;
 use threadpool::Threadpool;
+use libc::{signal, SIGINT, SIG_IGN};
 
 use std::sync::mpsc::{Sender, channel, TryRecvError};
 
@@ -60,6 +62,10 @@ fn main() {
     let opts = options.parse(&args[1..]).unwrap();
     if opts.opt_present("h") {
         print_usage(&args[0], options);
+    }
+
+    unsafe {
+        signal(SIGINT, SIG_IGN); // ignore SIGINT!!!! xboard sends SIGINT WTF
     }
 
     let engine_random_choice = opts.opt_present("r");
@@ -343,7 +349,6 @@ fn stdin_watcher(tx: Sender<String>, main_signal: Arc<Condvar>)
     thread::spawn(move || {
         loop {
             let s = next_input_line();
-            debug!("[stdin_watcher] got {}", s);
             tx.send(s).unwrap();
             main_signal.notify_all();
         }
