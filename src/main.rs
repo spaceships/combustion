@@ -1,3 +1,9 @@
+// TODO:
+// timer
+// more fine grained score function
+// hashing
+// pondering
+
 extern crate getopts;
 extern crate libc;
 extern crate num_cpus;
@@ -6,6 +12,8 @@ extern crate regex;
 
 #[macro_use]
 pub mod macros;
+
+pub mod clock;
 pub mod moves;
 pub mod piece;
 pub mod position;
@@ -20,28 +28,25 @@ pub mod board_tests;
 pub mod board_threatens;
 
 use board::Board;
+use clock::Clock;
 use moves::Move;
 use piece::Color;
 use util::ChessError;
 use threadpool::Threadpool;
-use libc::{signal, SIGINT, SIG_IGN};
 
-use std::sync::mpsc::{Sender, channel, TryRecvError};
-
-use getopts::Options;
-use regex::Regex;
 use std::env;
 use std::io::Write;
 use std::process::exit;
-
+use std::sync::{Arc, Condvar, Mutex};
+use std::sync::mpsc::{Sender, channel, TryRecvError};
 use std::thread;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::Condvar;
-
 use std::time::Duration;
+use std::rc::Rc;
+use std::cell::RefCell;
 
-// use std::time::Duration;
+use getopts::Options;
+use libc::{signal, SIGINT, SIG_IGN};
+use regex::Regex;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [OPTIONS]", program);
@@ -101,19 +106,34 @@ fn main() {
     let main_mutex = Mutex::new(());
     let mut pool = Threadpool::new(num_cpus::get(), main_signal.clone());
 
+    let white_clock = Rc::new(RefCell::new(Clock::new(30000, main_signal.clone()))); // init 5m
+    let black_clock = Rc::new(RefCell::new(Clock::new(30000, main_signal.clone())));
+
+    let mut my_clock    = white_clock.clone();
+    let mut their_clock = black_clock.clone();
+
     // let input_strings = Arc::new(Mutex::new(Vec::new()));
     let (tx, rx) = channel();
     let input_watcher_thread = stdin_watcher(tx, main_signal.clone());
 
     loop {
-        // debug!("TOP");
+        debug!("TOP! clocks: mine={} theirs={}", *my_clock.borrow(), *their_clock.borrow());
+
         match rx.try_recv() {
             Err(TryRecvError::Disconnected) => panic!("channel disconnected!"),
 
             // only make a move if there are no commands to process
             Err(TryRecvError::Empty) => {
+                if !force_mode && their_clock.borrow().is_zero() {
+                    match my_color {
+                        Color::White => send!("1-0 {{Flagged for time}}"),
+                        Color::Black => send!("0-1 {{Flagged for time}}"),
+                    }
+                }
+
                 if (engine_random_choice || pool.has_result()) && !force_mode && b.color_to_move == my_color {
                     debug!("getting result");
+
                     let mv_result;
                     if engine_random_choice {
                         mv_result = b.random_move();
@@ -121,6 +141,7 @@ fn main() {
                     } else {
                         mv_result = pool.take_result().unwrap();
                     }
+
                     match mv_result {
                         Ok((mv,score)) => {
                             b = b.make_move(&mv).unwrap();
@@ -128,6 +149,8 @@ fn main() {
                             debug!("moving {} with score {}", mv, score);
                             debug!("new board:\n{}", b);
                             send!("move {}", mv.to_xboard_format(b.color_to_move));
+                            my_clock.borrow().stop();
+                            their_clock.borrow().start();
                         }
                         Err(ChessError::Stalemate) => {
                             send!("1/2-1/2 {{Stalemate}}");
@@ -144,7 +167,7 @@ fn main() {
                     }
                 }
 
-                // make a move if it is time
+                // find a move if it is my turn
                 else if !engine_random_choice && !pool.thinking() && !force_mode && b.color_to_move == my_color {
                     debug!("finding best move");
                     pool.find_best_move(&b);
@@ -153,8 +176,8 @@ fn main() {
                 else {
                     // no input, no moves => wait
                     // debug!("sleep...");
-                    // let _ = main_signal.wait(main_mutex.lock().unwrap()).unwrap();
-                    let _ = main_signal.wait_timeout(main_mutex.lock().unwrap(), Duration::from_millis(500)).unwrap();
+                    let _ = main_signal.wait(main_mutex.lock().unwrap()).unwrap();
+                    // let _ = main_signal.wait_timeout(main_mutex.lock().unwrap(), Duration::from_millis(500)).unwrap();
                 }
             }
 
@@ -167,29 +190,35 @@ fn main() {
 
                 else if re_ping.is_match(&s) {
                     let n = re_ping.captures(&s).unwrap()[1].parse::<usize>().unwrap();
-                    // TODO: check that all previous commands are finished
+                    // check that all previous commands are finished
                     while pool.thinking() {
-                        thread::sleep(Duration::from_millis(100));
+                        thread::sleep(Duration::from_millis(50));
                     }
                     send!("pong {}", n);
                 }
 
                 else if s == "new" {
+                    pool.abort_and_clear();
                     force_mode = false;
                     b = Board::initial();
                     max_depth = 0;
                     my_color = Color::Black;
                     // my clock is Black's
+                    my_clock = black_clock.clone();
                     // other clock is White's
-                    // reset clocks.
+                    their_clock = white_clock.clone();
+                    // reset clocks (stops clocks)
+                    black_clock.borrow().reset();
+                    white_clock.borrow().reset();
                     // use wall clock for time measurement.
-                    // stop clocks.
                     // do not ponder now.
                     debug!("created new board:\n{}", b);
                 }
 
                 else if s == "force" { // accept moves from both sides, stop calculating
-                    // stop clocks
+                    pool.abort_and_clear();
+                    black_clock.borrow().stop();
+                    white_clock.borrow().stop();
                     // still: check moves are legal and made in proper turn
                     force_mode = true;
                 }
@@ -201,7 +230,18 @@ fn main() {
                     my_color = b.color_to_move;
                     // that color's clock is mine
                     // opponent's clock is the other color
+                    match my_color {
+                        Color::White => {
+                            my_clock    = white_clock.clone();
+                            their_clock = black_clock.clone();
+                        }
+                        Color::Black => {
+                            my_clock    = black_clock.clone();
+                            their_clock = white_clock.clone();
+                        }
+                    }
                     // start engine's clock
+                    my_clock.borrow().start();
                     // start thinking and make a move
                 }
 
@@ -212,7 +252,18 @@ fn main() {
                     my_color = b.color_to_move.other();
                     // opponent's clock is for the color on move
                     // my clock is clock for color not on move
+                    match my_color {
+                        Color::White => {
+                            my_clock    = white_clock.clone();
+                            their_clock = black_clock.clone();
+                        }
+                        Color::Black => {
+                            my_clock    = black_clock.clone();
+                            their_clock = white_clock.clone();
+                        }
+                    }
                     // start opponents clock
+                    their_clock.borrow().start();
                     // begin pondering
                     // wait for opponent's move
                 }
@@ -236,13 +287,13 @@ fn main() {
                 // which one to update is determined by which side i play
                 else if re_time.is_match(&s) { // set my clock time in centiseconds
                     // how many 1/100ths of a second do i have
-                    let centiseconds = re_time.captures(&s).unwrap()[1].parse::<usize>().unwrap();
-                    ignore();
+                    let csecs = re_time.captures(&s).unwrap()[1].parse::<isize>().unwrap();
+                    my_clock.borrow_mut().correct(csecs);
                 }
 
                 else if re_otim.is_match(&s) { // set opponent clock time in centiseconds
-                    let centiseconds = re_otim.captures(&s).unwrap()[1].parse::<usize>().unwrap();
-                    ignore();
+                    let csecs = re_otim.captures(&s).unwrap()[1].parse::<isize>().unwrap();
+                    their_clock.borrow_mut().correct(csecs);
                 }
 
                 else if s == "?" { // move now
@@ -309,7 +360,9 @@ fn main() {
                                 Ok(new_board)  => {
                                     if !force_mode {
                                         // stop opponent's clock
+                                        their_clock.borrow().stop();
                                         // start my clock
+                                        my_clock.borrow().start();
                                     }
                                     // debug!("current board:\n{}", new_board);
                                     history.push(mv);

@@ -5,9 +5,7 @@ use util::ChessError;
 use std::mem;
 use std::thread;
 use std::sync::mpsc::{Sender, Receiver, channel};
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::Condvar;
+use std::sync::{Arc, Condvar, Mutex};
 use rand::{self, Rng};
 use std::time::Duration;
 
@@ -137,7 +135,7 @@ impl Threadpool {
         let nmoves = match b.legal_moves() {
             Ok(moves) => {
                 for mv in moves.iter() {
-                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: 5 });
+                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: 4 });
                 }
                 moves.len()
             }
