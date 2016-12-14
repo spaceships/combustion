@@ -29,7 +29,7 @@ impl Board {
         let c = self.color_to_move;
         let kings = self.get_pieces_by_type_and_color(PieceType::King, c);
         if moves.len() == 0 {
-            if kings.len() == 1 && self.threatens(c.other(), kings[0]) {
+            if kings.len() == 1 && self.color_threatens(c.other(), kings[0]) {
                 Err(ChessError::Checkmate)
             } else {
                 Err(ChessError::Stalemate)
@@ -445,8 +445,8 @@ impl Board {
         if self.castle_kingside_rights(c) &&
             !self.occupied(old.east(1).expect("[Board::king_moves] confusing castling rights!")) &&
             !self.occupied(old.east(2).expect("[Board::king_moves] confusing castling rights!")) &&
-            !self.threatens(c.other(), old) &&
-            !self.threatens(c.other(), old.east(1).unwrap())
+            !self.color_threatens(c.other(), old) &&
+            !self.color_threatens(c.other(), old.east(1).unwrap())
         {
             moves.push(Move{castle: Some(Castle::Kingside),..castle});
         }
@@ -455,8 +455,8 @@ impl Board {
             !self.occupied(old.west(1).expect("[Board::king_moves] confusing castling rights!")) &&
             !self.occupied(old.west(2).expect("[Board::king_moves] confusing castling rights!")) &&
             !self.occupied(old.west(3).expect("[Board::king_moves] confusing castling rights!")) &&
-            !self.threatens(c.other(), old) &&
-            !self.threatens(c.other(), old.west(1).unwrap())
+            !self.color_threatens(c.other(), old) &&
+            !self.color_threatens(c.other(), old.west(1).unwrap())
         {
             moves.push(Move{castle: Some(Castle::Queenside),..castle});
         }
@@ -483,9 +483,9 @@ impl Board {
                     }
                     match color {
                         Color::White => {
-                            if self.threatens(color.other(), pos!("e1")) ||
-                               self.threatens(color.other(), pos!("f1")) ||
-                               self.threatens(color.other(), pos!("g1")) {
+                            if self.color_threatens(color.other(), pos!("e1")) ||
+                               self.color_threatens(color.other(), pos!("f1")) ||
+                               self.color_threatens(color.other(), pos!("g1")) {
                                 illegal_move_error!("[make_move] {}: white cannot castle kingside through check!", mv);
                             }
                             if self.occupied(pos!("f1")) || self.occupied(pos!("g1")) {
@@ -505,9 +505,9 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(color.other(), pos!("e8")) ||
-                               self.threatens(color.other(), pos!("f8")) ||
-                               self.threatens(color.other(), pos!("g8")) {
+                            if self.color_threatens(color.other(), pos!("e8")) ||
+                               self.color_threatens(color.other(), pos!("f8")) ||
+                               self.color_threatens(color.other(), pos!("g8")) {
                                 illegal_move_error!("[make_move] {} black cannot castle kingside through check!", mv);
                             }
                             if self.occupied(pos!("f8")) || self.occupied(pos!("g8")) {
@@ -534,9 +534,9 @@ impl Board {
                     }
                     match color {
                         Color::White => {
-                            if self.threatens(color.other(), pos!("e1")) ||
-                               self.threatens(color.other(), pos!("d1")) ||
-                               self.threatens(color.other(), pos!("c1")) {
+                            if self.color_threatens(color.other(), pos!("e1")) ||
+                               self.color_threatens(color.other(), pos!("d1")) ||
+                               self.color_threatens(color.other(), pos!("c1")) {
                                 illegal_move_error!("[make_move] {}: white cannot castle queenside through check!", mv);
                             }
                             if self.occupied(pos!("b1")) ||
@@ -558,9 +558,9 @@ impl Board {
                             b.castle_rights[1] = false;
                         }
                         Color::Black => {
-                            if self.threatens(color.other(), pos!("e8")) ||
-                               self.threatens(color.other(), pos!("d8")) ||
-                               self.threatens(color.other(), pos!("c8")) {
+                            if self.color_threatens(color.other(), pos!("e8")) ||
+                               self.color_threatens(color.other(), pos!("d8")) ||
+                               self.color_threatens(color.other(), pos!("c8")) {
                                 illegal_move_error!("[make_move] {}: black cannot castle queenside through check!", mv);
                             }
                             if self.occupied(pos!("b8")) ||
@@ -680,7 +680,7 @@ impl Board {
             }
         }
         let kings = b.get_pieces_by_type_and_color(PieceType::King, color);
-        if kings.len() == 1 && b.threatens(color.other(), kings[0]) {
+        if kings.len() == 1 && b.color_threatens(color.other(), kings[0]) {
             illegal_move_error!("moving into check");
         }
         Ok(b)

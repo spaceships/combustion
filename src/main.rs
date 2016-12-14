@@ -112,7 +112,7 @@ fn main() {
     let mut my_clock    = white_clock.clone();
     let mut their_clock = black_clock.clone();
 
-    let search_depth = 6;
+    let search_depth = 4;
 
     // let input_strings = Arc::new(Mutex::new(Vec::new()));
     let (tx, rx) = channel();

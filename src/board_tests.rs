@@ -77,7 +77,7 @@ mod tests {
     fn white_en_passant() {
         let b = legal_moves_are!("8/8/8/pP6/8/8/8/8 w - a6 0 1",
             "b5-b6", "b5xa6e.p.");
-        assert!(b.threatens(Color::White, pos!("a5")));
+        assert!(b.color_threatens(Color::White, pos!("a5")));
         board_after_move_is!("b5xa6e.p.",
             "8/8/8/pP6/8/8/8/8 w - a6 0 1",
             "8/8/P7/8/8/8/8/8 b - - 0 1");
@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn black_en_passant() {
         let b = legal_moves_are!("8/8/8/8/pP6/8/8/8 b - b3 0 1", "a4-a3", "a4xb3e.p.");
-        assert!(b.threatens(Color::Black, pos!("b3")));
+        assert!(b.color_threatens(Color::Black, pos!("b3")));
         board_after_move_is!("a4xb3e.p.",
             "8/8/8/8/pP6/8/8/8 b - b3 0 1",
             "8/8/8/8/8/1p6/8/8 w - - 0 2");
