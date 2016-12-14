@@ -129,13 +129,13 @@ impl Threadpool {
         *self.thinking.lock().unwrap()
     }
 
-    pub fn find_best_move(&mut self, b: &Board) {
+    pub fn find_best_move(&mut self, b: &Board, depth: usize) {
         *self.thinking.lock().unwrap() = true;
         *self.abort.lock().unwrap() = false; // initialize abort flag
         let nmoves = match b.legal_moves() {
             Ok(moves) => {
                 for mv in moves.iter() {
-                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: 4 });
+                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: depth });
                 }
                 moves.len()
             }

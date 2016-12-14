@@ -3,6 +3,9 @@ name = "combustion"
 version = "0.1.0"
 authors = ["Brent Carmer <bcarmer@gmail.com>"]
 
+[lib]
+crate-type = ["rlib", "dylib"]
+
 [dependencies]
 rand = "^0"
 regex = "^0"

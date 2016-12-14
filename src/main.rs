@@ -112,6 +112,8 @@ fn main() {
     let mut my_clock    = white_clock.clone();
     let mut their_clock = black_clock.clone();
 
+    let search_depth = 6;
+
     // let input_strings = Arc::new(Mutex::new(Vec::new()));
     let (tx, rx) = channel();
     let input_watcher_thread = stdin_watcher(tx, main_signal.clone());
@@ -170,7 +172,7 @@ fn main() {
                 // find a move if it is my turn
                 else if !engine_random_choice && !pool.thinking() && !force_mode && b.color_to_move == my_color {
                     debug!("finding best move");
-                    pool.find_best_move(&b);
+                    pool.find_best_move(&b, search_depth);
                 }
 
                 else {
