@@ -16,13 +16,12 @@ impl Board {
         Ok((ms[i], 0))
     }
 
-
     // get score of board in centipawns
     pub fn score(&self, color: Color) -> isize {
         let mut score = 0;
         for (pos, piece) in self.get_pieces_by_color(color) {
-            score += 10 * self.nthreats(pos, piece);
-            score += 10 * pos.value();
+            score += 2 * self.nthreats(pos, piece);
+            score += 2 * pos.value();
             match piece.kind {
                 PieceType::Pawn   => score += 100,
                 PieceType::Knight => score += 300,
@@ -33,8 +32,8 @@ impl Board {
             }
         }
         for (pos, piece) in self.get_pieces_by_color(color.other()) {
-            score -= 10 * self.nthreats(pos, piece);
-            score -= 10 * pos.value();
+            score -= 2 * self.nthreats(pos, piece);
+            score -= 2 * pos.value();
             match piece.kind {
                 PieceType::Pawn   => score -= 100,
                 PieceType::Knight => score -= 300,

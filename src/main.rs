@@ -150,7 +150,7 @@ fn main() {
                             history.push(mv);
                             debug!("moving {} with score {}", mv, score);
                             debug!("new board:\n{}", b);
-                            send!("move {}", mv.to_xboard_format(b.color_to_move));
+                            send!("move {}", mv.to_xboard_format(my_color));
                             my_clock.borrow().stop();
                             their_clock.borrow().start();
                         }
