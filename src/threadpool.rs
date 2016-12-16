@@ -1,6 +1,7 @@
 use board::Board;
 use moves::Move;
 use util::ChessError;
+use transposition_table::TranspositionTable;
 
 use std::mem;
 use std::thread;
@@ -17,6 +18,7 @@ struct Job {
     mv: Move,
     board: Board,
     depth: usize,
+    table: Arc<TranspositionTable>,
 }
 
 enum JobResult {
@@ -80,8 +82,8 @@ fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<Mutex<bool>>)
         loop {
             // get next job
             match q.next_job() {
-                Job { mv, board, depth } => {
-                    let val = board.alpha_beta(depth, Some(abort.clone()));
+                Job { mv, board, depth, table } => {
+                    let val = board.alpha_beta(depth, Some(abort.clone()), Some(table.clone()));
                     s.send(JobResult::Done { mv: mv, val: val }).unwrap();
                 }
             }
@@ -132,10 +134,19 @@ impl Threadpool {
     pub fn find_best_move(&mut self, b: &Board, depth: usize) {
         *self.thinking.lock().unwrap() = true;
         *self.abort.lock().unwrap() = false; // initialize abort flag
+
+        // initialize transposition table
+        let transposition_table = Arc::new(TranspositionTable::new(20));
+
         let nmoves = match b.legal_moves() {
             Ok(moves) => {
                 for mv in moves.iter() {
-                    self.jobs.add_job(Job { mv: *mv, board: b.make_move(mv).unwrap(), depth: depth });
+                    self.jobs.add_job(Job {
+                        mv: *mv,
+                        board: b.make_move(mv).unwrap(),
+                        depth: depth,
+                        table: transposition_table.clone(),
+                    });
                 }
                 moves.len()
             }

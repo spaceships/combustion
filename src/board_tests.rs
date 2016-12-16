@@ -262,6 +262,7 @@ mod tests {
         let b = Board::from_fen("4k3/8/3P4/6Q1/8/8/8/K7 w - - 0 1").unwrap();
         println!("\n{}",b);
         let (mv, _) = b.best_move(1).unwrap();
+        println!("got {}, expected Qg5-e7", mv);
         assert_eq!(mv, mv!("Qg5-e7"));
     }
 }

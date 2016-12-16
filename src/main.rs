@@ -19,6 +19,7 @@ pub mod piece;
 pub mod position;
 pub mod threadpool;
 pub mod util;
+pub mod transposition_table;
 
 pub mod board;
 pub mod board_alpha_beta;
@@ -64,10 +65,16 @@ fn main() {
     let mut options = Options::new();
     options.optflag("h", "help", "Print this help menu.");
     options.optflag("r", "random", "Choose moves randomly.");
+    options.optflag("d", "depth", "Set max search depth.");
     let opts = options.parse(&args[1..]).unwrap();
     if opts.opt_present("h") {
         print_usage(&args[0], options);
     }
+
+    let mut max_depth = match opts.opt_str("d") {
+        Some(s) => s.parse::<usize>().unwrap(),
+        None    => 5,
+    };
 
     unsafe {
         signal(SIGINT, SIG_IGN); // ignore SIGINT!!!! xboard sends SIGINT WTF
@@ -98,7 +105,6 @@ fn main() {
 
     let mut b = Board::initial();
     let mut force_mode = true;
-    let mut max_depth = 0;
     let mut my_color = Color::Black;
     let mut history: Vec<Move> = Vec::new();
 
@@ -111,8 +117,6 @@ fn main() {
 
     let mut my_clock    = white_clock.clone();
     let mut their_clock = black_clock.clone();
-
-    let search_depth = 4;
 
     // let input_strings = Arc::new(Mutex::new(Vec::new()));
     let (tx, rx) = channel();
@@ -172,7 +176,7 @@ fn main() {
                 // find a move if it is my turn
                 else if !engine_random_choice && !pool.thinking() && !force_mode && b.color_to_move == my_color {
                     debug!("finding best move");
-                    pool.find_best_move(&b, search_depth);
+                    pool.find_best_move(&b, max_depth);
                 }
 
                 else {
@@ -203,7 +207,6 @@ fn main() {
                     pool.abort_and_clear();
                     force_mode = false;
                     b = Board::initial();
-                    max_depth = 0;
                     my_color = Color::Black;
                     // my clock is Black's
                     my_clock = black_clock.clone();

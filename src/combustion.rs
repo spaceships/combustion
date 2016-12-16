@@ -12,6 +12,7 @@ pub mod moves;
 pub mod piece;
 pub mod position;
 pub mod threadpool;
+pub mod transposition_table;
 pub mod util;
 
 pub mod board;

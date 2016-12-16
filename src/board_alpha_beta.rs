@@ -4,12 +4,11 @@ use piece::{Piece, Color, PieceType};
 use rand::{self, Rng};
 use util::ChessError;
 use position::Pos;
+use transposition_table::TranspositionTable;
 
-use std::cell::RefCell;
 use std::cmp::{min, max};
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::collections::HashMap;
 
 impl Board {
     pub fn random_move(&self) -> Result<(Move, isize), ChessError> {
@@ -47,22 +46,23 @@ impl Board {
     }
 
     // find the move with the weakest response - single threaded
-    pub fn best_move(&self, depth: usize) -> Result<(Move, isize), ChessError> {
+    pub fn best_move(&self, max_depth: usize) -> Result<(Move, isize), ChessError> {
         let mut rng = rand::thread_rng();
         let mut best_score = isize::min_value();
         let mut best_move = None;
         let moves = self.legal_moves()?;
         for mv in moves {
             let score;
-            if depth == 0 {
+            if max_depth == 0 {
                 score = match self.make_move(&mv) {
-                    Err(ChessError::Checkmate) => return Ok((mv, isize::max_value()/2)),
+                    Err(ChessError::Checkmate) => return Ok((mv, isize::max_value()-1)),
                     Err(ChessError::Stalemate) => 0,
                     Err(e)                     => return Err(e),
                     Ok(new_board)              => new_board.score(self.color_to_move),
                 };
             } else {
-                score = self.make_move(&mv)?.alpha_beta(depth, None);
+                let tt = Arc::new(TranspositionTable::new(max_depth+1));
+                score = self.make_move(&mv)?.alpha_beta(max_depth, None, Some(tt.clone()));
             }
             if score > best_score || (score == best_score && rng.gen())
             {
@@ -73,24 +73,39 @@ impl Board {
         Ok((best_move.unwrap(), best_score))
     }
 
-    pub fn alpha_beta(&self, depth: usize, abort: Option<Arc<Mutex<bool>>>) -> isize {
-        self.alpha_beta_rec(self.color_to_move.other(), depth,
-                            isize::min_value(), isize::max_value(),
-                            &abort,
-                            &RefCell::new(HashMap::new()))
-    }
-
-    fn alpha_beta_rec(&self, my_color: Color, depth: usize,
-                      alpha_in: isize, beta_in: isize,
-                      abort: &Option<Arc<Mutex<bool>>>,
-                      tt: &RefCell<HashMap<(&str, usize), isize>>)
+    pub fn alpha_beta(&self, max_depth: usize,
+                      abort: Option<Arc<Mutex<bool>>>,
+                      transposition_table: Option<Arc<TranspositionTable>>)
         -> isize
     {
+        self.alpha_beta_rec(self.color_to_move.other(), 0, max_depth,
+                            isize::min_value(), isize::max_value(),
+                            &abort,
+                            &transposition_table)
+    }
+
+    fn alpha_beta_rec(&self, my_color: Color,
+                      depth: usize, max_depth: usize,
+                      alpha_in: isize, beta_in: isize,
+                      abort: &Option<Arc<Mutex<bool>>>,
+                      tt: &Option<Arc<TranspositionTable>>)
+        -> isize
+    {
+        // if the transposition table includes this board state at this depth,
+        // return the previous value
+        if let Some(ref table) = *tt {
+            if let Some(result) = table.get(self, depth) {
+                return result;
+            }
+        }
+
         let mut alpha = alpha_in;
         let mut beta  = beta_in;
-        if depth == 0 || abort.as_ref().map_or(false, |mutex| *mutex.lock().unwrap()) {
+        if depth == max_depth || abort.as_ref().map_or(false, |mutex| *mutex.lock().unwrap()) {
             return self.score(my_color);
         }
+
+        let ret;
         if self.color_to_move == my_color {
             // maximizing player
             let mut v = isize::min_value();
@@ -100,14 +115,16 @@ impl Board {
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
                     let b = self.make_move(&mv).unwrap();
-                    let score = b.alpha_beta_rec(my_color, depth - 1, alpha, beta, abort, tt);
+                    let score = b.alpha_beta_rec(my_color, depth + 1, max_depth, alpha, beta, abort, tt);
                     v     = max(v, score);
                     alpha = max(alpha, v);
                     if beta <= alpha { break }
                 },
             }
-            v
-        } else {
+            ret = v;
+        }
+
+        else {
             let mut v = isize::max_value();
             match self.legal_moves() {
                 Err(ChessError::Checkmate) => return isize::max_value()-1,
@@ -115,14 +132,21 @@ impl Board {
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
                     let b = self.make_move(&mv).unwrap();
-                    let score = b.alpha_beta_rec(my_color, depth - 1, alpha, beta, abort, tt);
+                    let score = b.alpha_beta_rec(my_color, depth + 1, max_depth, alpha, beta, abort, tt);
                     v = min(v, score);
                     beta = min(beta, v);
                     if beta <= alpha { break }
                 },
             }
-            v
+            ret = v;
         }
+
+        // update the transposition table with the result
+        if let Some(ref table) = *tt {
+            table.insert(self, depth, ret);
+        }
+
+        ret
     }
 
 }
