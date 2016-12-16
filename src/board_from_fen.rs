@@ -4,6 +4,81 @@ use position::Pos;
 use util::ChessError;
 
 impl Board {
+    pub fn to_fen(&self) -> String {
+        let mut s = String::new();
+        for i in 0..8 {
+            let mut n = 0;
+            for j in 0..8 {
+                match self.piece(Pos::new(i, j)) {
+                    None => {
+                        n += 1;
+                        if j == 7 {
+                            s.push_str(&format!("{}", n));
+                        }
+                    }
+
+                    Some(p) => {
+                        if n > 0 {
+                            s.push_str(&format!("{}", n));
+                            n = 0;
+                        }
+                        let mut c;
+                        match p.kind {
+                            PieceType::Pawn   => c = 'p',
+                            PieceType::Knight => c = 'n',
+                            PieceType::Bishop => c = 'b',
+                            PieceType::Rook   => c = 'r',
+                            PieceType::Queen  => c = 'q',
+                            PieceType::King   => c = 'k',
+                        }
+                        if p.color == Color::White {
+                            c = c.to_uppercase().collect::<Vec<char>>()[0];
+                        }
+                        s.push(c);
+                    }
+                }
+            }
+            if i < 7 {
+                s.push('/');
+            } else {
+                s.push(' ');
+            }
+        }
+
+        match self.color_to_move {
+            Color::White => s.push_str("w "),
+            Color::Black => s.push_str("b "),
+        }
+
+        if !self.castle_rights.iter().any(|&x|x) {
+            s.push('-');
+        } else {
+            if self.castle_rights[0] {
+                s.push('K');
+            }
+            if self.castle_rights[1] {
+                s.push('Q');
+            }
+            if self.castle_rights[2] {
+                s.push('k');
+            }
+            if self.castle_rights[3] {
+                s.push('q');
+            }
+        }
+
+        s.push(' ');
+
+        match self.en_passant_target {
+            Some(ep) => s.push_str(&ep.to_algebra()),
+            None     => s.push('-'),
+        }
+
+        s.push_str(&format!(" {} {}", self.halfmove_clock, self.move_number));
+
+        s
+    }
+
     pub fn from_fen(fen: &str) -> Result<Board, ChessError> {
         let mut b = Board::new();
         let mut i = 0;
@@ -81,5 +156,28 @@ impl Board {
         };
 
         Ok(b)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use board::Board;
+    #[test]
+    fn fen_correct() {
+        let p = "1K6/2P5/1p3P2/1k2P3/1qnP1B2/3Q4/8/8 b - - 0 1";
+        let q = &Board::from_fen(p).unwrap().to_fen();
+        println!("\np={}\nq={}", p, q);
+        assert_eq!(p, q);
+
+        let p = "4k2r/8/5Q2/8/8/8/8/8 b kq - 0 1";
+        println!("\n{}", Board::from_fen(p).unwrap());
+        let q = &Board::from_fen(p).unwrap().to_fen();
+        println!("\np={}\nq={}", p, q);
+        assert_eq!(p, q);
+
+        let p = "r3k2r/8/8/8/8/8/8/8 b kq - 0 1";
+        let q = &Board::from_fen(p).unwrap().to_fen();
+        println!("\np={}\nq={}", p, q);
+        assert_eq!(p, q);
     }
 }

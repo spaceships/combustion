@@ -197,10 +197,10 @@ impl Board {
         let n = RefCell::new(0);
         let ref f = |ray| {
             match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 1 },
+                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
                 None    => *n.borrow_mut() += 1,
             }
-            if self.is_en_passant_target(ray) { *n.borrow_mut() += 1 }
+            if self.is_en_passant_target(ray) { *n.borrow_mut() += 2 }
         };
 
         match color {
@@ -224,7 +224,7 @@ impl Board {
 
         let ref f = |ray| {
             match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 1 },
+                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
                 None    => *n.borrow_mut() += 1,
             }
         };
@@ -248,7 +248,7 @@ impl Board {
 
         let ref f = |ray| {
             match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 1 },
+                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
                 None    => *n.borrow_mut() += 1,
             }
         };
@@ -272,7 +272,7 @@ impl Board {
 
         let ref f = |ray| {
             match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 1 },
+                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
                 None    => *n.borrow_mut() += 1,
             }
         };
@@ -312,7 +312,7 @@ impl Board {
 
         let ref f = |ray| {
             match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 1 },
+                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
                 None    => *n.borrow_mut() += 1,
             }
         };
@@ -350,7 +350,7 @@ impl Board {
 
         let ref f = |ray| {
             match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 1 },
+                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
                 None    => *n.borrow_mut() += 1,
             }
         };

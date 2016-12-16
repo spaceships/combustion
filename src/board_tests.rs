@@ -252,7 +252,7 @@ mod tests {
     #[should_panic]
     fn black_castling_through_threat() {
         // shouldn't be able to castle through threatened square!
-        let b = Board::from_fen("4k2r/8/5Q3/8/8/8/8/8 b kq - 0 1").unwrap();
+        let b = Board::from_fen("4k2r/8/5Q2/8/8/8/8/8 b kq - 0 1").unwrap();
         println!("\n{}",b);
         b.make_move(&mv!("O-O")).unwrap();
     }

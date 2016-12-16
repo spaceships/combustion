@@ -26,6 +26,10 @@ impl Pos {
         Ok(Pos(from_algebra(s)?))
     }
 
+    pub fn to_algebra(&self) -> String {
+        to_algebra(self.0).unwrap()
+    }
+
     pub fn file(&self) -> usize {
         self.0 % 8
     }

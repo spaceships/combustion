@@ -1,12 +1,15 @@
 use board::Board;
 use moves::Move;
-use piece::{Color, PieceType};
+use piece::{Piece, Color, PieceType};
 use rand::{self, Rng};
 use util::ChessError;
+use position::Pos;
 
+use std::cell::RefCell;
 use std::cmp::{min, max};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::collections::HashMap;
 
 impl Board {
     pub fn random_move(&self) -> Result<(Move, isize), ChessError> {
@@ -16,38 +19,35 @@ impl Board {
         Ok((ms[i], 0))
     }
 
-    // get score of board in centipawns
-    pub fn score(&self, color: Color) -> isize {
+    fn piece_score(&self, pos: Pos, piece: Piece) -> isize {
         let mut score = 0;
-        for (pos, piece) in self.get_pieces_by_color(color) {
-            score += 2 * self.nthreats(pos, piece);
-            score += 2 * pos.value();
-            match piece.kind {
-                PieceType::Pawn   => score += 100,
-                PieceType::Knight => score += 300,
-                PieceType::Bishop => score += 300,
-                PieceType::Rook   => score += 500,
-                PieceType::Queen  => score += 900,
-                PieceType::King   => score += isize::max_value()/2,
-            }
-        }
-        for (pos, piece) in self.get_pieces_by_color(color.other()) {
-            score -= 2 * self.nthreats(pos, piece);
-            score -= 2 * pos.value();
-            match piece.kind {
-                PieceType::Pawn   => score -= 100,
-                PieceType::Knight => score -= 300,
-                PieceType::Bishop => score -= 300,
-                PieceType::Rook   => score -= 500,
-                PieceType::Queen  => score -= 900,
-                PieceType::King   => score -= isize::max_value()/2,
-            }
+        score += self.nthreats(pos, piece);
+        score += pos.value();
+        match piece.kind {
+            PieceType::Pawn   => score += 100,
+            PieceType::Knight => score += 300,
+            PieceType::Bishop => score += 300,
+            PieceType::Rook   => score += 500,
+            PieceType::Queen  => score += 900,
+            PieceType::King   => score += isize::max_value()/2,
         }
         score
     }
 
+    // get score of board in centipawns
+    pub fn score(&self, color: Color) -> isize {
+        let mut score = 0;
+        for (pos, piece) in self.get_pieces_by_color(color) {
+            score += self.piece_score(pos, piece);
+        }
+        for (pos, piece) in self.get_pieces_by_color(color.other()) {
+            score -= self.piece_score(pos, piece);
+        }
+        score
+    }
+
+    // find the move with the weakest response - single threaded
     pub fn best_move(&self, depth: usize) -> Result<(Move, isize), ChessError> {
-        // find the move with the weakest response
         let mut rng = rand::thread_rng();
         let mut best_score = isize::min_value();
         let mut best_move = None;
@@ -74,11 +74,16 @@ impl Board {
     }
 
     pub fn alpha_beta(&self, depth: usize, abort: Option<Arc<Mutex<bool>>>) -> isize {
-        self.alpha_beta_rec(self.color_to_move.other(), depth, isize::min_value(), isize::max_value(), &abort)
+        self.alpha_beta_rec(self.color_to_move.other(), depth,
+                            isize::min_value(), isize::max_value(),
+                            &abort,
+                            &RefCell::new(HashMap::new()))
     }
 
-    fn alpha_beta_rec(&self, my_color: Color, depth: usize, alpha_in: isize, beta_in: isize,
-                      abort: &Option<Arc<Mutex<bool>>>)
+    fn alpha_beta_rec(&self, my_color: Color, depth: usize,
+                      alpha_in: isize, beta_in: isize,
+                      abort: &Option<Arc<Mutex<bool>>>,
+                      tt: &RefCell<HashMap<(&str, usize), isize>>)
         -> isize
     {
         let mut alpha = alpha_in;
@@ -94,12 +99,11 @@ impl Board {
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
-                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta, abort);
+                    let b = self.make_move(&mv).unwrap();
+                    let score = b.alpha_beta_rec(my_color, depth - 1, alpha, beta, abort, tt);
                     v     = max(v, score);
                     alpha = max(alpha, v);
-                    if beta <= alpha {
-                        break;
-                    }
+                    if beta <= alpha { break }
                 },
             }
             v
@@ -110,12 +114,11 @@ impl Board {
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
                 Ok(moves) => for mv in moves {
-                    let score = self.make_move(&mv).unwrap().alpha_beta_rec(my_color, depth - 1, alpha, beta, abort);
+                    let b = self.make_move(&mv).unwrap();
+                    let score = b.alpha_beta_rec(my_color, depth - 1, alpha, beta, abort, tt);
                     v = min(v, score);
                     beta = min(beta, v);
-                    if beta <= alpha {
-                        break;
-                    }
+                    if beta <= alpha { break }
                 },
             }
             v
