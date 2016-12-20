@@ -15,7 +15,7 @@ fn main() {
     let main_mutex = Mutex::new(());
     let mut pool = Threadpool::new(num_cpus::get(), main_signal.clone());
     let start = Instant::now();
-    pool.find_best_move(&b, 7);
+    pool.find_best_move(&b, 6);
     println!("started search...");
     let _ = main_signal.wait(main_mutex.lock().unwrap()).unwrap();
     let (mv, score) = pool.take_result().unwrap().unwrap();

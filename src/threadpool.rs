@@ -6,7 +6,7 @@ use transposition_table::TranspositionTable;
 use std::mem;
 use std::thread;
 use std::sync::mpsc::{Sender, Receiver, channel};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, RwLock, Mutex};
 use rand::{self, Rng};
 use std::time::Duration;
 
@@ -29,7 +29,7 @@ pub struct Threadpool {
     handles: Vec<Worker>,
     result_chan: Arc<Mutex<Receiver<JobResult>>>,
     jobs: Arc<JobQueue>,
-    abort: Arc<Mutex<bool>>,
+    abort: Arc<RwLock<bool>>,
     main_signal: Arc<Condvar>,
     result_mutex: Arc<Mutex<Option<Result<(Move, isize), ChessError>>>>,
     thinking: Arc<Mutex<bool>>,
@@ -75,7 +75,7 @@ impl JobQueue {
     }
 }
 
-fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<Mutex<bool>>)
+fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<RwLock<bool>>)
     -> Worker
 {
     thread::spawn(move || {
@@ -97,7 +97,7 @@ impl Threadpool {
         let mut hs = Vec::new();
         let (result_tx, result_rx) = channel();
         let q = Arc::new(JobQueue::new());
-        let abort = Arc::new(Mutex::new(false));
+        let abort = Arc::new(RwLock::new(false));
 
         for _ in 0..nthreads {
             hs.push(worker(result_tx.clone(), q.clone(), abort.clone()));
@@ -124,7 +124,7 @@ impl Threadpool {
     }
 
     pub fn abort(&self) {
-        *self.abort.lock().unwrap() = true;
+        *self.abort.write().unwrap() = true;
     }
 
     pub fn thinking(&self) -> bool {
@@ -133,7 +133,7 @@ impl Threadpool {
 
     pub fn find_best_move(&mut self, b: &Board, depth: usize) {
         *self.thinking.lock().unwrap() = true;
-        *self.abort.lock().unwrap() = false; // initialize abort flag
+        *self.abort.write().unwrap() = false; // initialize abort flag
 
         // initialize transposition table
         let transposition_table = Arc::new(TranspositionTable::new(20));

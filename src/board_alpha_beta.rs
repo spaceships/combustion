@@ -8,7 +8,7 @@ use transposition_table::TranspositionTable;
 
 use std::cmp::{min, max};
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 impl Board {
     pub fn random_move(&self) -> Result<(Move, isize), ChessError> {
@@ -74,7 +74,7 @@ impl Board {
     }
 
     pub fn alpha_beta(&self, max_depth: usize,
-                      abort: Option<Arc<Mutex<bool>>>,
+                      abort: Option<Arc<RwLock<bool>>>,
                       transposition_table: Option<Arc<TranspositionTable>>)
         -> isize
     {
@@ -87,7 +87,7 @@ impl Board {
     fn alpha_beta_rec(&self, my_color: Color,
                       depth: usize, max_depth: usize,
                       alpha_in: isize, beta_in: isize,
-                      abort: &Option<Arc<Mutex<bool>>>,
+                      abort: &Option<Arc<RwLock<bool>>>,
                       tt: &Option<Arc<TranspositionTable>>)
         -> isize
     {
@@ -101,7 +101,7 @@ impl Board {
 
         let mut alpha = alpha_in;
         let mut beta  = beta_in;
-        if depth == max_depth || abort.as_ref().map_or(false, |mutex| *mutex.lock().unwrap()) {
+        if depth == max_depth || abort.as_ref().map_or(false, |mutex| *mutex.read().unwrap()) {
             return self.score(my_color);
         }
 
