@@ -5,17 +5,16 @@ authors = ["Brent Carmer <bcarmer@gmail.com>"]
 edition = "2018"
 
 [lib]
-crate-type = ["rlib", "dylib"]
 doctest = false
 
 [[bin]]
 name = "combustion"
-path = "src/combustion.rs"
+path = "src/bin/combustion.rs"
 test = false
 
 [[bin]]
 name = "benchmark"
-path = "src/benchmark.rs"
+path = "src/bin/benchmark.rs"
 test = false
 
 [dependencies]
