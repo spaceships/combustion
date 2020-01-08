@@ -6,6 +6,17 @@ edition = "2018"
 
 [lib]
 crate-type = ["rlib", "dylib"]
+doctest = false
+
+[[bin]]
+name = "combustion"
+path = "src/combustion.rs"
+test = false
+
+[[bin]]
+name = "benchmark"
+path = "src/benchmark.rs"
+test = false
 
 [dependencies]
 rand = "0.7.2"
