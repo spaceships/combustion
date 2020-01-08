@@ -54,7 +54,7 @@ pub fn from_algebra(s: &str) -> Result<usize, ChessError> {
 
 #[cfg(test)]
 mod tests {
-    use util::{to_algebra, from_algebra};
+    use crate::util::{to_algebra, from_algebra};
     use rand::{self, Rng};
 
     #[test]

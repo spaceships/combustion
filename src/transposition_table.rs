@@ -1,4 +1,4 @@
-use board::Board;
+use crate::board::Board;
 
 use std::collections::HashMap;
 use std::sync::RwLock;

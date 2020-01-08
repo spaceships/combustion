@@ -1,6 +1,6 @@
-use board::Board;
-use piece::{Piece, Color, PieceType};
-use position::Pos;
+use crate::board::Board;
+use crate::piece::{Piece, Color, PieceType};
+use crate::position::Pos;
 
 use std::cell::RefCell;
 

@@ -1,7 +1,7 @@
-use piece::{Color, PieceType};
-use position::Pos;
-use util::ChessError;
-use board::Board;
+use crate::piece::{Color, PieceType};
+use crate::position::Pos;
+use crate::util::ChessError;
+use crate::board::Board;
 
 use std::fmt;
 use std::cmp::Ordering;

@@ -4,36 +4,14 @@
 // hashing
 // pondering
 
-extern crate getopts;
-extern crate libc;
-extern crate num_cpus;
-extern crate rand;
-extern crate regex;
+use combustion::*;
 
-#[macro_use]
-pub mod macros;
-
-pub mod clock;
-pub mod moves;
-pub mod piece;
-pub mod position;
-pub mod threadpool;
-pub mod util;
-pub mod transposition_table;
-
-pub mod board;
-pub mod board_alpha_beta;
-pub mod board_from_fen;
-pub mod board_moves;
-pub mod board_tests;
-pub mod board_threatens;
-
-use board::Board;
-use clock::Clock;
-use moves::Move;
-use piece::Color;
-use util::ChessError;
-use threadpool::Threadpool;
+use combustion::board::Board;
+use combustion::clock::Clock;
+use combustion::moves::Move;
+use combustion::piece::Color;
+use combustion::util::ChessError;
+use combustion::threadpool::Threadpool;
 
 use std::env;
 use std::io::Write;
@@ -56,7 +34,7 @@ fn print_usage(program: &str, opts: Options) {
 }
 
 fn ignore() {
-    debug!("ignoring message");
+    combustion::debug!("ignoring message");
 }
 
 #[allow(unused_variables, unused_assignments)]
@@ -188,9 +166,14 @@ fn main() {
             }
 
             Ok(s) => {
-                debug!("recieved message: \"{}\"", s);
+                debug!("received message: \"{}\"", s);
 
-                if re_protover.is_match(&s) {
+                if s == "exit" || s == "q" || s == "quit" {
+                    debug!("exiting");
+                    return;
+                }
+
+                else if re_protover.is_match(&s) {
                     send!("feature usermove=1 sigint=0 ping=1 colors=0 playother=1 setboard=1 analyze=0 done=1");
                 }
 

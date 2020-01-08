@@ -1,4 +1,4 @@
-use util::{ChessError, to_algebra, from_algebra};
+use crate::util::{ChessError, to_algebra, from_algebra};
 
 use std::fmt;
 

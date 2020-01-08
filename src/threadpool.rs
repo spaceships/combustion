@@ -1,7 +1,7 @@
-use board::Board;
-use moves::Move;
-use util::ChessError;
-use transposition_table::TranspositionTable;
+use crate::board::Board;
+use crate::moves::Move;
+use crate::util::ChessError;
+use crate::transposition_table::TranspositionTable;
 
 use std::mem;
 use std::thread;
@@ -11,8 +11,6 @@ use rand::{self, Rng};
 use std::time::Duration;
 
 type Worker = thread::JoinHandle<()>;
-
-type JobId = usize;
 
 struct Job {
     mv: Move,

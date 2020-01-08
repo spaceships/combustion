@@ -1,10 +1,10 @@
-use board::Board;
-use moves::Move;
-use piece::{Piece, Color, PieceType};
+use crate::board::Board;
+use crate::moves::Move;
+use crate::piece::{Piece, Color, PieceType};
+use crate::util::ChessError;
+use crate::position::Pos;
+use crate::transposition_table::TranspositionTable;
 use rand::{self, Rng};
-use util::ChessError;
-use position::Pos;
-use transposition_table::TranspositionTable;
 
 use std::cmp::{min, max};
 use std::sync::Arc;

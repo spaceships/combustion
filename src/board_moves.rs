@@ -1,8 +1,8 @@
-use board::Board;
-use moves::{Castle, Move};
-use piece::{Color, PieceType, Piece};
-use position::Pos;
-use util::ChessError;
+use crate::board::Board;
+use crate::moves::{Castle, Move};
+use crate::piece::{Color, PieceType, Piece};
+use crate::position::Pos;
+use crate::util::ChessError;
 
 impl Board {
     pub fn moves(&self) -> Vec<Move> {

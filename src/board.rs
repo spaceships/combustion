@@ -1,5 +1,5 @@
-use piece::{Color, PieceType, Piece};
-use position::Pos;
+use crate::piece::{Color, PieceType, Piece};
+use crate::position::Pos;
 
 use std::fmt;
 
@@ -44,7 +44,7 @@ impl Board {
         self.board[pos.index()] = Some(p);
     }
 
-    pub fn pieces(&self, f: &Fn(Piece) -> bool) -> Vec<(Pos, Piece)> {
+    pub fn pieces(&self, f: &dyn Fn(Piece) -> bool) -> Vec<(Pos, Piece)> {
         let mut res = Vec::new();
         for ix in 0..64 {
             self.board[ix].map(|p| {

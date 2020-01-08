@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use board::Board;
-    use position::Pos;
-    use moves::Move;
-    use piece::Color;
+    use crate::board::Board;
+    use crate::position::Pos;
+    use crate::moves::Move;
+    use crate::piece::Color;
 
     use std::collections::HashSet;
 
@@ -14,7 +14,7 @@ mod tests {
             let mut should_be = HashSet::new();
             $(
                 should_be.insert(Move::from_algebra($mv).expect("[legal_moves] bad move!"));
-            );*
+            )*
             for mv in b.legal_moves().unwrap() {
                 println!("{}", mv);
             }
@@ -31,7 +31,7 @@ mod tests {
             let mut should_be = HashSet::new();
             $(
                 should_be.insert(Move::from_algebra($mv).expect("[legal_moves] bad move!"));
-            );*
+            )*
             let res: HashSet<Move> = b.legal_moves().unwrap().into_iter().collect();
             assert!(should_be.is_subset(&res));
             b

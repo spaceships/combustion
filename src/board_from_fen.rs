@@ -1,7 +1,7 @@
-use board::Board;
-use piece::{PieceType, Piece, Color};
-use position::Pos;
-use util::ChessError;
+use crate::board::Board;
+use crate::piece::{PieceType, Piece, Color};
+use crate::position::Pos;
+use crate::util::ChessError;
 
 impl Board {
     pub fn to_fen(&self) -> String {
@@ -99,8 +99,8 @@ impl Board {
                 ' ' => break,
                 '/' => { i += 1; j = 0; }
 
-                n @ '1' ... '8' => {
-                    j += n.to_string().parse().expect("couldn't read number!");
+                n @ '1' ..= '8' => {
+                    j += n.to_string().parse::<usize>().expect("couldn't read number!");
                 }
 
                 'P' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
@@ -161,7 +161,8 @@ impl Board {
 
 #[cfg(test)]
 mod tests {
-    use board::Board;
+    use crate::board::Board;
+
     #[test]
     fn fen_correct() {
         let p = "1K6/2P5/1p3P2/1k2P3/1qnP1B2/3Q4/8/8 b - - 0 1";
