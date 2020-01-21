@@ -1,1 +1,0 @@
-exec ssh livengood 'cd codes/combustion; cargo run --release -- -r'
