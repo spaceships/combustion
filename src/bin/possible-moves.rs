@@ -28,6 +28,6 @@ fn main() {
     }
 
     for mv in &board.legal_moves().unwrap() {
-        println!("{}", mv);
+        println!("{}", mv.to_xboard_format(board.color_to_move));
     }
 }
