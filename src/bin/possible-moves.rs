@@ -1,6 +1,5 @@
 use combustion::board::Board;
 use combustion::moves::Move;
-use combustion::piece::Color;
 
 use std::env;
 use std::process::exit;
@@ -18,8 +17,6 @@ fn main() {
     } else {
         Board::from_fen(&args[1]).unwrap()
     };
-
-    let mut to_move = Color::White;
 
     for mv_str in args.iter().skip(2) {
         // should be UCI format
