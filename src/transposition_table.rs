@@ -13,9 +13,7 @@ impl TranspositionTable {
         for _ in 0..max_depth {
             tabs.push(RwLock::new(HashMap::new()));
         }
-        TranspositionTable {
-            depth_tables: tabs,
-        }
+        TranspositionTable { depth_tables: tabs }
     }
 
     pub fn get(&self, b: &Board, depth: usize) -> Option<isize> {

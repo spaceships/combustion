@@ -1,7 +1,7 @@
+use std::fmt;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use std::fmt;
 
 pub struct Clock {
     init: isize,
@@ -9,23 +9,23 @@ pub struct Clock {
     running: Arc<Mutex<bool>>,
 }
 
-fn spawn_updater_thread(time_left: Arc<Mutex<isize>>, running: Arc<Mutex<bool>>,
-                        main_signal: Arc<Condvar>)
-{
-    thread::spawn(move || {
-        loop {
-            if !*running.lock().unwrap() {
-                thread::sleep(Duration::from_millis(10));
-                continue;
-            }
-            if *time_left.lock().unwrap() <= 0 {
-                main_signal.notify_all();
-            }
-            let sleep_start = Instant::now();
+fn spawn_updater_thread(
+    time_left: Arc<Mutex<isize>>,
+    running: Arc<Mutex<bool>>,
+    main_signal: Arc<Condvar>,
+) {
+    thread::spawn(move || loop {
+        if !*running.lock().unwrap() {
             thread::sleep(Duration::from_millis(10));
-            let slept_for = Instant::now().duration_since(sleep_start);
-            *time_left.lock().unwrap() -= slept_for.subsec_nanos() as isize / 10000000;
+            continue;
         }
+        if *time_left.lock().unwrap() <= 0 {
+            main_signal.notify_all();
+        }
+        let sleep_start = Instant::now();
+        thread::sleep(Duration::from_millis(10));
+        let slept_for = Instant::now().duration_since(sleep_start);
+        *time_left.lock().unwrap() -= slept_for.subsec_nanos() as isize / 10000000;
     });
 }
 
@@ -33,7 +33,7 @@ impl Clock {
     // starts stopped
     pub fn new(init: isize, main_signal: Arc<Condvar>) -> Clock {
         let time_left = Arc::new(Mutex::new(init));
-        let running   = Arc::new(Mutex::new(false));
+        let running = Arc::new(Mutex::new(false));
         spawn_updater_thread(time_left.clone(), running.clone(), main_signal);
         Clock {
             init: init,
@@ -79,10 +79,10 @@ impl fmt::Display for Clock {
         let secs = csecs / 100;
         if secs <= 0 {
             let min = -secs / 60;
-            write!(f, "-{:01}:{:02}", min, (-secs) - min*60)
+            write!(f, "-{:01}:{:02}", min, (-secs) - min * 60)
         } else {
             let min = secs / 60;
-            write!(f, "{:01}:{:02}", min, secs - min*60)
+            write!(f, "{:01}:{:02}", min, secs - min * 60)
         }
     }
 }

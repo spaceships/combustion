@@ -1,5 +1,5 @@
 use crate::board::Board;
-use crate::piece::{PieceType, Piece, Color};
+use crate::piece::{Color, Piece, PieceType};
 use crate::position::Pos;
 use crate::util::ChessError;
 
@@ -24,12 +24,12 @@ impl Board {
                         }
                         let mut c;
                         match p.kind {
-                            PieceType::Pawn   => c = 'p',
+                            PieceType::Pawn => c = 'p',
                             PieceType::Knight => c = 'n',
                             PieceType::Bishop => c = 'b',
-                            PieceType::Rook   => c = 'r',
-                            PieceType::Queen  => c = 'q',
-                            PieceType::King   => c = 'k',
+                            PieceType::Rook => c = 'r',
+                            PieceType::Queen => c = 'q',
+                            PieceType::King => c = 'k',
                         }
                         if p.color == Color::White {
                             c = c.to_uppercase().collect::<Vec<char>>()[0];
@@ -50,7 +50,7 @@ impl Board {
             Color::Black => s.push_str("b "),
         }
 
-        if !self.castle_rights.iter().any(|&x|x) {
+        if !self.castle_rights.iter().any(|&x| x) {
             s.push('-');
         } else {
             if self.castle_rights[0] {
@@ -71,7 +71,7 @@ impl Board {
 
         match self.en_passant_target {
             Some(ep) => s.push_str(&ep.to_algebra()),
-            None     => s.push('-'),
+            None => s.push('-'),
         }
 
         s.push_str(&format!(" {} {}", self.halfmove_clock, self.move_number));
@@ -85,9 +85,12 @@ impl Board {
         let mut j = 0;
         let tokens: Vec<&str> = fen.split(" ").collect();
 
-        let check = |i,j| {
-            if i*8+j >= 64 {
-                Err(ChessError::ParseError(format!("[from_fen] index out of bounds i={} j={}!", i, j)))
+        let check = |i, j| {
+            if i * 8 + j >= 64 {
+                Err(ChessError::ParseError(format!(
+                    "[from_fen] index out of bounds i={} j={}!",
+                    i, j
+                )))
             } else {
                 Ok(())
             }
@@ -97,24 +100,114 @@ impl Board {
         for c in tokens[0].chars() {
             match c {
                 ' ' => break,
-                '/' => { i += 1; j = 0; }
-
-                n @ '1' ..= '8' => {
-                    j += n.to_string().parse::<usize>().expect("couldn't read number!");
+                '/' => {
+                    i += 1;
+                    j = 0;
                 }
 
-                'P' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::White }); j += 1; }
-                'p' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Pawn,   color : Color::Black }); j += 1; }
-                'B' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::White }); j += 1; }
-                'b' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Bishop, color : Color::Black }); j += 1; }
-                'N' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::White }); j += 1; }
-                'n' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Knight, color : Color::Black }); j += 1; }
-                'R' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::White }); j += 1; }
-                'r' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Rook,   color : Color::Black }); j += 1; }
-                'Q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::White }); j += 1; }
-                'q' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::Queen,  color : Color::Black }); j += 1; }
-                'K' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::White }); j += 1; }
-                'k' => { check(i,j)?; b.board[i*8+j] = Some(Piece { kind: PieceType::King,   color : Color::Black }); j += 1; }
+                n @ '1'..='8' => {
+                    j += n
+                        .to_string()
+                        .parse::<usize>()
+                        .expect("couldn't read number!");
+                }
+
+                'P' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Pawn,
+                        color: Color::White,
+                    });
+                    j += 1;
+                }
+                'p' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Pawn,
+                        color: Color::Black,
+                    });
+                    j += 1;
+                }
+                'B' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Bishop,
+                        color: Color::White,
+                    });
+                    j += 1;
+                }
+                'b' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Bishop,
+                        color: Color::Black,
+                    });
+                    j += 1;
+                }
+                'N' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Knight,
+                        color: Color::White,
+                    });
+                    j += 1;
+                }
+                'n' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Knight,
+                        color: Color::Black,
+                    });
+                    j += 1;
+                }
+                'R' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Rook,
+                        color: Color::White,
+                    });
+                    j += 1;
+                }
+                'r' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Rook,
+                        color: Color::Black,
+                    });
+                    j += 1;
+                }
+                'Q' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Queen,
+                        color: Color::White,
+                    });
+                    j += 1;
+                }
+                'q' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::Queen,
+                        color: Color::Black,
+                    });
+                    j += 1;
+                }
+                'K' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::King,
+                        color: Color::White,
+                    });
+                    j += 1;
+                }
+                'k' => {
+                    check(i, j)?;
+                    b.board[i * 8 + j] = Some(Piece {
+                        kind: PieceType::King,
+                        color: Color::Black,
+                    });
+                    j += 1;
+                }
 
                 c => parse_error!("[from_fen] unexpected \"{}\"", c),
             }
@@ -122,8 +215,8 @@ impl Board {
 
         // parse turn
         match tokens[1] {
-            "w"|"W" => b.color_to_move = Color::White,
-            "b"|"B" => b.color_to_move = Color::Black,
+            "w" | "W" => b.color_to_move = Color::White,
+            "b" | "B" => b.color_to_move = Color::Black,
             c => parse_error!("[from_fen] unexpected \"{}\"", c),
         }
 
@@ -142,7 +235,7 @@ impl Board {
         // parse en-passant string
         match tokens[3] {
             "-" => {}
-            s   => b.en_passant_target = Some(Pos::from_algebra(s)?),
+            s => b.en_passant_target = Some(Pos::from_algebra(s)?),
         }
 
         b.halfmove_clock = match tokens[4].parse() {

@@ -1,4 +1,4 @@
-use crate::util::{ChessError, to_algebra, from_algebra};
+use crate::util::{from_algebra, to_algebra, ChessError};
 
 use std::fmt;
 
@@ -59,27 +59,42 @@ impl Pos {
         }
     }
 
-    pub fn north(&self, d: isize) -> Option<Pos> { self.mv(-d, 0) }
-    pub fn south(&self, d: isize) -> Option<Pos> { self.mv( d, 0) }
-    pub fn east(&self, d: isize)  -> Option<Pos> { self.mv( 0, d) }
-    pub fn west(&self, d: isize)  -> Option<Pos> { self.mv( 0,-d) }
-    pub fn northeast(&self, d: isize) -> Option<Pos> { self.mv(-d, d) }
-    pub fn northwest(&self, d: isize) -> Option<Pos> { self.mv(-d,-d) }
-    pub fn southeast(&self, d: isize) -> Option<Pos> { self.mv( d, d) }
-    pub fn southwest(&self, d: isize) -> Option<Pos> { self.mv( d,-d) }
+    pub fn north(&self, d: isize) -> Option<Pos> {
+        self.mv(-d, 0)
+    }
+    pub fn south(&self, d: isize) -> Option<Pos> {
+        self.mv(d, 0)
+    }
+    pub fn east(&self, d: isize) -> Option<Pos> {
+        self.mv(0, d)
+    }
+    pub fn west(&self, d: isize) -> Option<Pos> {
+        self.mv(0, -d)
+    }
+    pub fn northeast(&self, d: isize) -> Option<Pos> {
+        self.mv(-d, d)
+    }
+    pub fn northwest(&self, d: isize) -> Option<Pos> {
+        self.mv(-d, -d)
+    }
+    pub fn southeast(&self, d: isize) -> Option<Pos> {
+        self.mv(d, d)
+    }
+    pub fn southwest(&self, d: isize) -> Option<Pos> {
+        self.mv(d, -d)
+    }
 
     pub fn value(&self) -> isize {
         if self.rank_is(1) || self.file_is('a') || self.rank_is(8) || self.file_is('h') {
-            return 0
+            return 0;
         }
-        if self.rank_is(2) || self.file_is('b') || self.rank_is(7) || self.file_is('g'){
-            return 1
+        if self.rank_is(2) || self.file_is('b') || self.rank_is(7) || self.file_is('g') {
+            return 1;
         }
-        if self.rank_is(3) || self.file_is('c') || self.rank_is(6) || self.file_is('f'){
-            return 2
-        }
-        else {
-            return 3
+        if self.rank_is(3) || self.file_is('c') || self.rank_is(6) || self.file_is('f') {
+            return 2;
+        } else {
+            return 3;
         }
     }
 }

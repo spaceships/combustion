@@ -1,5 +1,5 @@
 use crate::board::Board;
-use crate::piece::{Piece, Color, PieceType};
+use crate::piece::{Color, Piece, PieceType};
 use crate::position::Pos;
 
 use std::cell::RefCell;
@@ -12,20 +12,28 @@ impl Board {
                     match c {
                         Color::White => {
                             // omg en passant is complicated
-                            if new.northeast(1).map_or(false, |ray|
-                                ray == old || self.is_en_passant_target(ray) && ray.south(1).unwrap() == old) ||
-                               new.northwest(1).map_or(false, |ray|
-                                ray == old || self.is_en_passant_target(ray) && ray.south(1).unwrap() == old)
-                            {
+                            if new.northeast(1).map_or(false, |ray| {
+                                ray == old
+                                    || self.is_en_passant_target(ray)
+                                        && ray.south(1).unwrap() == old
+                            }) || new.northwest(1).map_or(false, |ray| {
+                                ray == old
+                                    || self.is_en_passant_target(ray)
+                                        && ray.south(1).unwrap() == old
+                            }) {
                                 return true;
                             }
                         }
                         Color::Black => {
-                            if new.southeast(1).map_or(false, |ray|
-                                ray == old || self.is_en_passant_target(ray) && ray.north(1).unwrap() == old) ||
-                               new.southwest(1).map_or(false, |ray|
-                                ray == old || self.is_en_passant_target(ray) && ray.north(1).unwrap() == old)
-                            {
+                            if new.southeast(1).map_or(false, |ray| {
+                                ray == old
+                                    || self.is_en_passant_target(ray)
+                                        && ray.north(1).unwrap() == old
+                            }) || new.southwest(1).map_or(false, |ray| {
+                                ray == old
+                                    || self.is_en_passant_target(ray)
+                                        && ray.north(1).unwrap() == old
+                            }) {
                                 return true;
                             }
                         }
@@ -33,28 +41,28 @@ impl Board {
                 }
 
                 PieceType::King => {
-                    if new.mv( 1, 1).map_or(false, |ray| ray == old) ||
-                       new.mv( 1, 0).map_or(false, |ray| ray == old) ||
-                       new.mv( 1,-1).map_or(false, |ray| ray == old) ||
-                       new.mv( 0, 1).map_or(false, |ray| ray == old) ||
-                       new.mv( 0,-1).map_or(false, |ray| ray == old) ||
-                       new.mv(-1, 1).map_or(false, |ray| ray == old) ||
-                       new.mv(-1, 0).map_or(false, |ray| ray == old) ||
-                       new.mv(-1,-1).map_or(false, |ray| ray == old)
+                    if new.mv(1, 1).map_or(false, |ray| ray == old)
+                        || new.mv(1, 0).map_or(false, |ray| ray == old)
+                        || new.mv(1, -1).map_or(false, |ray| ray == old)
+                        || new.mv(0, 1).map_or(false, |ray| ray == old)
+                        || new.mv(0, -1).map_or(false, |ray| ray == old)
+                        || new.mv(-1, 1).map_or(false, |ray| ray == old)
+                        || new.mv(-1, 0).map_or(false, |ray| ray == old)
+                        || new.mv(-1, -1).map_or(false, |ray| ray == old)
                     {
                         return true;
                     }
                 }
 
                 PieceType::Knight => {
-                    if new.mv( 1, 2).map_or(false, |ray| ray == old) ||
-                       new.mv( 1,-2).map_or(false, |ray| ray == old) ||
-                       new.mv(-1,-2).map_or(false, |ray| ray == old) ||
-                       new.mv(-1, 2).map_or(false, |ray| ray == old) ||
-                       new.mv( 2, 1).map_or(false, |ray| ray == old) ||
-                       new.mv( 2,-1).map_or(false, |ray| ray == old) ||
-                       new.mv(-2,-1).map_or(false, |ray| ray == old) ||
-                       new.mv(-2, 1).map_or(false, |ray| ray == old)
+                    if new.mv(1, 2).map_or(false, |ray| ray == old)
+                        || new.mv(1, -2).map_or(false, |ray| ray == old)
+                        || new.mv(-1, -2).map_or(false, |ray| ray == old)
+                        || new.mv(-1, 2).map_or(false, |ray| ray == old)
+                        || new.mv(2, 1).map_or(false, |ray| ray == old)
+                        || new.mv(2, -1).map_or(false, |ray| ray == old)
+                        || new.mv(-2, -1).map_or(false, |ray| ray == old)
+                        || new.mv(-2, 1).map_or(false, |ray| ray == old)
                     {
                         return true;
                     }
@@ -64,29 +72,45 @@ impl Board {
                     let mut ray = new;
                     while ray.north(1).is_some() {
                         ray = ray.north(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.south(1).is_some() {
                         ray = ray.south(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.east(1).is_some() {
                         ray = ray.east(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.west(1).is_some() {
                         ray = ray.west(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
                 }
 
@@ -94,29 +118,45 @@ impl Board {
                     let mut ray = new;
                     while ray.northeast(1).is_some() {
                         ray = ray.northeast(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.northwest(1).is_some() {
                         ray = ray.northwest(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.southeast(1).is_some() {
                         ray = ray.southeast(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.southwest(1).is_some() {
                         ray = ray.southwest(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
                 }
 
@@ -124,57 +164,89 @@ impl Board {
                     let mut ray = new;
                     while ray.north(1).is_some() {
                         ray = ray.north(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.south(1).is_some() {
                         ray = ray.south(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.east(1).is_some() {
                         ray = ray.east(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.west(1).is_some() {
                         ray = ray.west(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.northeast(1).is_some() {
                         ray = ray.northeast(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.northwest(1).is_some() {
                         ray = ray.northwest(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.southeast(1).is_some() {
                         ray = ray.southeast(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
 
                     ray = new;
                     while ray.southwest(1).is_some() {
                         ray = ray.southwest(1).unwrap();
-                        if ray == old { return true }
-                        if self.piece(ray).is_some() { break }
+                        if ray == old {
+                            return true;
+                        }
+                        if self.piece(ray).is_some() {
+                            break;
+                        }
                     }
                 }
             }
@@ -184,12 +256,12 @@ impl Board {
 
     pub fn nthreats(&self, pos: Pos, piece: Piece) -> isize {
         match piece.kind {
-            PieceType::Pawn   => self.pawn_nthreats(pos, piece.color),
+            PieceType::Pawn => self.pawn_nthreats(pos, piece.color),
             PieceType::Knight => self.knight_nthreats(pos, piece.color),
             PieceType::Bishop => self.bishop_nthreats(pos, piece.color),
-            PieceType::Rook   => self.rook_nthreats(pos, piece.color),
-            PieceType::Queen  => self.queen_nthreats(pos, piece.color),
-            PieceType::King   => self.king_nthreats(pos, piece.color),
+            PieceType::Rook => self.rook_nthreats(pos, piece.color),
+            PieceType::Queen => self.queen_nthreats(pos, piece.color),
+            PieceType::King => self.king_nthreats(pos, piece.color),
         }
     }
 
@@ -197,10 +269,16 @@ impl Board {
         let n = RefCell::new(0);
         let ref f = |ray| {
             match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
-                None    => *n.borrow_mut() += 1,
+                Some(p) => {
+                    if p.color == color.other() {
+                        *n.borrow_mut() += 2
+                    }
+                }
+                None => *n.borrow_mut() += 1,
             }
-            if self.is_en_passant_target(ray) { *n.borrow_mut() += 2 }
+            if self.is_en_passant_target(ray) {
+                *n.borrow_mut() += 2
+            }
         };
 
         match color {
@@ -222,21 +300,23 @@ impl Board {
     fn king_nthreats(&self, pos: Pos, color: Color) -> isize {
         let n = RefCell::new(0);
 
-        let ref f = |ray| {
-            match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
-                None    => *n.borrow_mut() += 1,
+        let ref f = |ray| match self.piece(ray) {
+            Some(p) => {
+                if p.color == color.other() {
+                    *n.borrow_mut() += 2
+                }
             }
+            None => *n.borrow_mut() += 1,
         };
 
-        pos.mv( 1, 1).map(f);
-        pos.mv( 1, 0).map(f);
-        pos.mv( 1,-1).map(f);
-        pos.mv( 0, 1).map(f);
-        pos.mv( 0,-1).map(f);
+        pos.mv(1, 1).map(f);
+        pos.mv(1, 0).map(f);
+        pos.mv(1, -1).map(f);
+        pos.mv(0, 1).map(f);
+        pos.mv(0, -1).map(f);
         pos.mv(-1, 1).map(f);
         pos.mv(-1, 0).map(f);
-        pos.mv(-1,-1).map(f);
+        pos.mv(-1, -1).map(f);
 
         // TODO: on an airplane, done know how to do this correctly
         let n = n.borrow_mut().clone();
@@ -246,20 +326,22 @@ impl Board {
     fn knight_nthreats(&self, pos: Pos, color: Color) -> isize {
         let n = RefCell::new(0);
 
-        let ref f = |ray| {
-            match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
-                None    => *n.borrow_mut() += 1,
+        let ref f = |ray| match self.piece(ray) {
+            Some(p) => {
+                if p.color == color.other() {
+                    *n.borrow_mut() += 2
+                }
             }
+            None => *n.borrow_mut() += 1,
         };
 
-        pos.mv( 1, 2).map(f);
-        pos.mv( 1,-2).map(f);
-        pos.mv(-1,-2).map(f);
+        pos.mv(1, 2).map(f);
+        pos.mv(1, -2).map(f);
+        pos.mv(-1, -2).map(f);
         pos.mv(-1, 2).map(f);
-        pos.mv( 2, 1).map(f);
-        pos.mv( 2,-1).map(f);
-        pos.mv(-2,-1).map(f);
+        pos.mv(2, 1).map(f);
+        pos.mv(2, -1).map(f);
+        pos.mv(-2, -1).map(f);
         pos.mv(-2, 1).map(f);
 
         // TODO: on an airplane, done know how to do this correctly
@@ -270,11 +352,13 @@ impl Board {
     fn bishop_nthreats(&self, pos: Pos, color: Color) -> isize {
         let n = RefCell::new(0);
 
-        let ref f = |ray| {
-            match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
-                None    => *n.borrow_mut() += 1,
+        let ref f = |ray| match self.piece(ray) {
+            Some(p) => {
+                if p.color == color.other() {
+                    *n.borrow_mut() += 2
+                }
             }
+            None => *n.borrow_mut() += 1,
         };
 
         let mut ray = pos;
@@ -306,15 +390,16 @@ impl Board {
         n
     }
 
-
     fn rook_nthreats(&self, pos: Pos, color: Color) -> isize {
         let n = RefCell::new(0);
 
-        let ref f = |ray| {
-            match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
-                None    => *n.borrow_mut() += 1,
+        let ref f = |ray| match self.piece(ray) {
+            Some(p) => {
+                if p.color == color.other() {
+                    *n.borrow_mut() += 2
+                }
             }
+            None => *n.borrow_mut() += 1,
         };
 
         let mut ray = pos;
@@ -348,11 +433,13 @@ impl Board {
     fn queen_nthreats(&self, pos: Pos, color: Color) -> isize {
         let n = RefCell::new(0);
 
-        let ref f = |ray| {
-            match self.piece(ray) {
-                Some(p) => if p.color == color.other() { *n.borrow_mut() += 2 },
-                None    => *n.borrow_mut() += 1,
+        let ref f = |ray| match self.piece(ray) {
+            Some(p) => {
+                if p.color == color.other() {
+                    *n.borrow_mut() += 2
+                }
             }
+            None => *n.borrow_mut() += 1,
         };
 
         let mut ray = pos;

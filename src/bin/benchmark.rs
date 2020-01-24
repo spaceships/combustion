@@ -4,8 +4,8 @@ extern crate num_cpus;
 use combustion::board::Board;
 use combustion::threadpool::Threadpool;
 
-use std::time::Instant;
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::Instant;
 
 // sees how long it takes to solve this tactic
 fn main() {
@@ -19,5 +19,10 @@ fn main() {
     println!("started search...");
     let _ = main_signal.wait(main_mutex.lock().unwrap()).unwrap();
     let (mv, score) = pool.take_result().unwrap().unwrap();
-    println!("finished search: move={} score={} took={}s", mv, score, start.elapsed().as_secs());
+    println!(
+        "finished search: move={} score={} took={}s",
+        mv,
+        score,
+        start.elapsed().as_secs()
+    );
 }

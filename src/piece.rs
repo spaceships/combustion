@@ -1,5 +1,5 @@
-use std::fmt;
 use std::cmp::Ordering;
+use std::fmt;
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Color {
@@ -15,7 +15,6 @@ impl Color {
         }
     }
 }
-
 
 #[derive(Copy, Clone, PartialEq, Debug, Eq, Hash)]
 pub enum PieceType {
@@ -45,18 +44,54 @@ impl fmt::Display for Color {
 impl fmt::Display for Piece {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Piece { kind: PieceType::Pawn,   color: Color::White } => write!(f, "P"),
-            Piece { kind: PieceType::Bishop, color: Color::White } => write!(f, "B"),
-            Piece { kind: PieceType::Knight, color: Color::White } => write!(f, "N"),
-            Piece { kind: PieceType::Rook,   color: Color::White } => write!(f, "R"),
-            Piece { kind: PieceType::Queen,  color: Color::White } => write!(f, "Q"),
-            Piece { kind: PieceType::King,   color: Color::White } => write!(f, "K"),
-            Piece { kind: PieceType::Pawn,   color: Color::Black } => write!(f, "p"),
-            Piece { kind: PieceType::Bishop, color: Color::Black } => write!(f, "b"),
-            Piece { kind: PieceType::Knight, color: Color::Black } => write!(f, "n"),
-            Piece { kind: PieceType::Rook,   color: Color::Black } => write!(f, "r"),
-            Piece { kind: PieceType::Queen,  color: Color::Black } => write!(f, "q"),
-            Piece { kind: PieceType::King,   color: Color::Black } => write!(f, "k"),
+            Piece {
+                kind: PieceType::Pawn,
+                color: Color::White,
+            } => write!(f, "P"),
+            Piece {
+                kind: PieceType::Bishop,
+                color: Color::White,
+            } => write!(f, "B"),
+            Piece {
+                kind: PieceType::Knight,
+                color: Color::White,
+            } => write!(f, "N"),
+            Piece {
+                kind: PieceType::Rook,
+                color: Color::White,
+            } => write!(f, "R"),
+            Piece {
+                kind: PieceType::Queen,
+                color: Color::White,
+            } => write!(f, "Q"),
+            Piece {
+                kind: PieceType::King,
+                color: Color::White,
+            } => write!(f, "K"),
+            Piece {
+                kind: PieceType::Pawn,
+                color: Color::Black,
+            } => write!(f, "p"),
+            Piece {
+                kind: PieceType::Bishop,
+                color: Color::Black,
+            } => write!(f, "b"),
+            Piece {
+                kind: PieceType::Knight,
+                color: Color::Black,
+            } => write!(f, "n"),
+            Piece {
+                kind: PieceType::Rook,
+                color: Color::Black,
+            } => write!(f, "r"),
+            Piece {
+                kind: PieceType::Queen,
+                color: Color::Black,
+            } => write!(f, "q"),
+            Piece {
+                kind: PieceType::King,
+                color: Color::Black,
+            } => write!(f, "k"),
         }
     }
 }
@@ -67,10 +102,10 @@ impl PieceType {
         match *self {
             PieceType::Knight => 0,
             PieceType::Bishop => 1,
-            PieceType::Rook   => 2,
-            PieceType::Queen  => 3,
-            PieceType::Pawn   => 4,
-            PieceType::King   => 5,
+            PieceType::Rook => 2,
+            PieceType::Queen => 3,
+            PieceType::Pawn => 4,
+            PieceType::King => 5,
         }
     }
 }

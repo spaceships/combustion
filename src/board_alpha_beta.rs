@@ -1,12 +1,12 @@
 use crate::board::Board;
 use crate::moves::Move;
-use crate::piece::{Piece, Color, PieceType};
-use crate::util::ChessError;
+use crate::piece::{Color, Piece, PieceType};
 use crate::position::Pos;
 use crate::transposition_table::TranspositionTable;
+use crate::util::ChessError;
 use rand::{self, Rng};
 
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -23,12 +23,12 @@ impl Board {
         score += self.nthreats(pos, piece);
         score += pos.value();
         match piece.kind {
-            PieceType::Pawn   => score += 100,
+            PieceType::Pawn => score += 100,
             PieceType::Knight => score += 300,
             PieceType::Bishop => score += 300,
-            PieceType::Rook   => score += 500,
-            PieceType::Queen  => score += 900,
-            PieceType::King   => score += isize::max_value()/2,
+            PieceType::Rook => score += 500,
+            PieceType::Queen => score += 900,
+            PieceType::King => score += isize::max_value() / 2,
         }
         score
     }
@@ -55,17 +55,18 @@ impl Board {
             let score;
             if max_depth == 0 {
                 score = match self.make_move(&mv) {
-                    Err(ChessError::Checkmate) => return Ok((mv, isize::max_value()-1)),
+                    Err(ChessError::Checkmate) => return Ok((mv, isize::max_value() - 1)),
                     Err(ChessError::Stalemate) => 0,
-                    Err(e)                     => return Err(e),
-                    Ok(new_board)              => new_board.score(self.color_to_move),
+                    Err(e) => return Err(e),
+                    Ok(new_board) => new_board.score(self.color_to_move),
                 };
             } else {
-                let tt = Arc::new(TranspositionTable::new(max_depth+1));
-                score = self.make_move(&mv)?.alpha_beta(max_depth, None, Some(tt.clone()));
+                let tt = Arc::new(TranspositionTable::new(max_depth + 1));
+                score = self
+                    .make_move(&mv)?
+                    .alpha_beta(max_depth, None, Some(tt.clone()));
             }
-            if score > best_score || (score == best_score && rng.gen())
-            {
+            if score > best_score || (score == best_score && rng.gen()) {
                 best_move = Some(mv);
                 best_score = score;
             }
@@ -73,24 +74,33 @@ impl Board {
         Ok((best_move.unwrap(), best_score))
     }
 
-    pub fn alpha_beta(&self, max_depth: usize,
-                      abort: Option<Arc<RwLock<bool>>>,
-                      transposition_table: Option<Arc<TranspositionTable>>)
-        -> isize
-    {
-        self.alpha_beta_rec(self.color_to_move.other(), 0, max_depth,
-                            isize::min_value(), isize::max_value(),
-                            &abort,
-                            &transposition_table)
+    pub fn alpha_beta(
+        &self,
+        max_depth: usize,
+        abort: Option<Arc<RwLock<bool>>>,
+        transposition_table: Option<Arc<TranspositionTable>>,
+    ) -> isize {
+        self.alpha_beta_rec(
+            self.color_to_move.other(),
+            0,
+            max_depth,
+            isize::min_value(),
+            isize::max_value(),
+            &abort,
+            &transposition_table,
+        )
     }
 
-    fn alpha_beta_rec(&self, my_color: Color,
-                      depth: usize, max_depth: usize,
-                      alpha_in: isize, beta_in: isize,
-                      abort: &Option<Arc<RwLock<bool>>>,
-                      tt: &Option<Arc<TranspositionTable>>)
-        -> isize
-    {
+    fn alpha_beta_rec(
+        &self,
+        my_color: Color,
+        depth: usize,
+        max_depth: usize,
+        alpha_in: isize,
+        beta_in: isize,
+        abort: &Option<Arc<RwLock<bool>>>,
+        tt: &Option<Arc<TranspositionTable>>,
+    ) -> isize {
         // if the transposition table includes this board state at this depth,
         // return the previous value
         if let Some(ref table) = *tt {
@@ -100,7 +110,7 @@ impl Board {
         }
 
         let mut alpha = alpha_in;
-        let mut beta  = beta_in;
+        let mut beta = beta_in;
         if depth == max_depth || abort.as_ref().map_or(false, |mutex| *mutex.read().unwrap()) {
             return self.score(my_color);
         }
@@ -110,33 +120,55 @@ impl Board {
             // maximizing player
             let mut v = isize::min_value();
             match self.legal_moves() {
-                Err(ChessError::Checkmate) => return isize::min_value()+1,
+                Err(ChessError::Checkmate) => return isize::min_value() + 1,
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
-                Ok(moves) => for mv in moves {
-                    let b = self.make_move(&mv).unwrap();
-                    let score = b.alpha_beta_rec(my_color, depth + 1, max_depth, alpha, beta, abort, tt);
-                    v     = max(v, score);
-                    alpha = max(alpha, v);
-                    if beta <= alpha { break }
-                },
+                Ok(moves) => {
+                    for mv in moves {
+                        let b = self.make_move(&mv).unwrap();
+                        let score = b.alpha_beta_rec(
+                            my_color,
+                            depth + 1,
+                            max_depth,
+                            alpha,
+                            beta,
+                            abort,
+                            tt,
+                        );
+                        v = max(v, score);
+                        alpha = max(alpha, v);
+                        if beta <= alpha {
+                            break;
+                        }
+                    }
+                }
             }
             ret = v;
-        }
-
-        else {
+        } else {
             let mut v = isize::max_value();
             match self.legal_moves() {
-                Err(ChessError::Checkmate) => return isize::max_value()-1,
+                Err(ChessError::Checkmate) => return isize::max_value() - 1,
                 Err(ChessError::Stalemate) => return 0,
                 Err(e) => panic!("{}", e),
-                Ok(moves) => for mv in moves {
-                    let b = self.make_move(&mv).unwrap();
-                    let score = b.alpha_beta_rec(my_color, depth + 1, max_depth, alpha, beta, abort, tt);
-                    v = min(v, score);
-                    beta = min(beta, v);
-                    if beta <= alpha { break }
-                },
+                Ok(moves) => {
+                    for mv in moves {
+                        let b = self.make_move(&mv).unwrap();
+                        let score = b.alpha_beta_rec(
+                            my_color,
+                            depth + 1,
+                            max_depth,
+                            alpha,
+                            beta,
+                            abort,
+                            tt,
+                        );
+                        v = min(v, score);
+                        beta = min(beta, v);
+                        if beta <= alpha {
+                            break;
+                        }
+                    }
+                }
             }
             ret = v;
         }
@@ -148,5 +180,4 @@ impl Board {
 
         ret
     }
-
 }

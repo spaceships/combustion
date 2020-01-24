@@ -1,4 +1,4 @@
-use crate::piece::{Color, PieceType, Piece};
+use crate::piece::{Color, Piece, PieceType};
 use crate::position::Pos;
 
 use std::fmt;
@@ -49,7 +49,7 @@ impl Board {
         for ix in 0..64 {
             self.board[ix].map(|p| {
                 if f(p) {
-                    res.push((Pos::from_index(ix),p));
+                    res.push((Pos::from_index(ix), p));
                 }
             });
         }
@@ -58,7 +58,10 @@ impl Board {
 
     pub fn get_pieces_by_type_and_color(&self, k: PieceType, c: Color) -> Vec<Pos> {
         let q = Piece { kind: k, color: c };
-        self.pieces(&|p| p == q).into_iter().map(|(pos,_)| pos).collect()
+        self.pieces(&|p| p == q)
+            .into_iter()
+            .map(|(pos, _)| pos)
+            .collect()
     }
 
     pub fn get_pieces_by_color(&self, c: Color) -> Vec<(Pos, Piece)> {
@@ -100,8 +103,8 @@ impl PartialEq for Board {
         for i in 0..64 {
             match (self.board[i], other.board[i]) {
                 (Some(p), Some(q)) => eq &= p == q,
-                (None, None)       => {},
-                _                  => return false,
+                (None, None) => {}
+                _ => return false,
             }
         }
         eq
@@ -111,9 +114,9 @@ impl PartialEq for Board {
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for i in 0..8 {
-            write!(f, "{} [ ", 8-i)?;
+            write!(f, "{} [ ", 8 - i)?;
             for j in 0..8 {
-                match self.board[i*8+j] {
+                match self.board[i * 8 + j] {
                     Some(x) => write!(f, "{} ", x)?,
                     None => write!(f, "_ ")?,
                 }
@@ -130,10 +133,18 @@ impl fmt::Display for Board {
 
         if self.castle_rights.iter().any(|&x| x) {
             write!(f, " [")?;
-            if self.castle_rights[0] { write!(f, "K")?; }
-            if self.castle_rights[1] { write!(f, "Q")?; }
-            if self.castle_rights[2] { write!(f, "k")?; }
-            if self.castle_rights[3] { write!(f, "q")?; }
+            if self.castle_rights[0] {
+                write!(f, "K")?;
+            }
+            if self.castle_rights[1] {
+                write!(f, "Q")?;
+            }
+            if self.castle_rights[2] {
+                write!(f, "k")?;
+            }
+            if self.castle_rights[3] {
+                write!(f, "q")?;
+            }
             write!(f, "]")?;
         }
 

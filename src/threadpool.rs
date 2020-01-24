@@ -1,13 +1,13 @@
 use crate::board::Board;
 use crate::moves::Move;
-use crate::util::ChessError;
 use crate::transposition_table::TranspositionTable;
+use crate::util::ChessError;
 
-use std::mem;
-use std::thread;
-use std::sync::mpsc::{Sender, Receiver, channel};
-use std::sync::{Arc, Condvar, RwLock, Mutex};
 use rand::{self, Rng};
+use std::mem;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::thread;
 use std::time::Duration;
 
 type Worker = thread::JoinHandle<()>;
@@ -54,14 +54,19 @@ impl JobQueue {
                     job = j;
                     break;
                 }
-                None => { }
+                None => {}
             }
-            match self.jobs_available.wait(self.jobs.lock().unwrap()).unwrap().pop() {
+            match self
+                .jobs_available
+                .wait(self.jobs.lock().unwrap())
+                .unwrap()
+                .pop()
+            {
                 Some(j) => {
                     job = j;
                     break;
                 }
-                None => { }
+                None => {}
             }
         }
         job
@@ -73,14 +78,17 @@ impl JobQueue {
     }
 }
 
-fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<RwLock<bool>>)
-    -> Worker
-{
+fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<RwLock<bool>>) -> Worker {
     thread::spawn(move || {
         loop {
             // get next job
             match q.next_job() {
-                Job { mv, board, depth, table } => {
+                Job {
+                    mv,
+                    board,
+                    depth,
+                    table,
+                } => {
                     let val = board.alpha_beta(depth, Some(abort.clone()), Some(table.clone()));
                     s.send(JobResult::Done { mv: mv, val: val }).unwrap();
                 }
@@ -90,8 +98,7 @@ fn worker(s: Sender<JobResult>, q: Arc<JobQueue>, abort: Arc<RwLock<bool>>)
 }
 
 impl Threadpool {
-    pub fn new(nthreads: usize, main_signal: Arc<Condvar>) -> Threadpool
-    {
+    pub fn new(nthreads: usize, main_signal: Arc<Condvar>) -> Threadpool {
         let mut hs = Vec::new();
         let (result_tx, result_rx) = channel();
         let q = Arc::new(JobQueue::new());
@@ -116,7 +123,7 @@ impl Threadpool {
         loop {
             match self.handles.pop() {
                 Some(h) => h.join().unwrap(),
-                None    => break,
+                None => break,
             }
         }
     }
@@ -167,7 +174,7 @@ impl Threadpool {
             let mut best_move = None;
             for _ in 0..nmoves {
                 match rx.lock().unwrap().recv().unwrap() {
-                    JobResult::Done { mv, val } =>  {
+                    JobResult::Done { mv, val } => {
                         if val > best_score || (val == best_score && rng.gen()) {
                             best_move = Some(mv);
                             best_score = val;

@@ -2,14 +2,14 @@
 macro_rules! mv {
     ( $str: expr ) => {{
         Move::from_algebra($str).unwrap()
-    }}
+    }};
 }
 
 #[macro_export]
 macro_rules! pos {
     ( $str: expr ) => {{
         Pos::from_algebra($str).unwrap()
-    }}
+    }};
 }
 
 #[macro_export]
@@ -63,4 +63,3 @@ macro_rules! send(
         stdout.flush().expect("failed flushing stdout");
     } }
 );
-
