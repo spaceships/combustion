@@ -1,7 +1,6 @@
 use combustion::board::Board;
 use combustion::moves::Move;
 
-use itertools::Itertools;
 use std::env;
 use std::process::exit;
 
@@ -25,13 +24,7 @@ fn main() {
         board = board.make_move(&mv).unwrap();
     }
 
-    println!(
-        "{}",
-        board
-            .legal_moves()
-            .unwrap()
-            .iter()
-            .map(|mv| mv.to_xboard_format(board.color_to_move))
-            .join(" ")
-    );
+    for mv in &board.legal_moves().unwrap() {
+        println!("{}", mv.to_xboard_format(board.color_to_move));
+    }
 }
