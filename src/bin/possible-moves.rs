@@ -8,7 +8,7 @@ fn main() {
 
     let mut board = Board::initial();
 
-    for mv_str in args.iter().skip(2) {
+    for mv_str in args.iter().skip(1) {
         // should be UCI format
         let mv = Move::from_xboard_format(mv_str, &board).unwrap();
         board = board.make_move(&mv).unwrap();
